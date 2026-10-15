@@ -13,6 +13,7 @@ Generate and populate a secure Django secret key in `backend\.env`:
 ```powershell
 python -c "import secrets; from pathlib import Path; p = Path('backend/.env'); p.write_text(p.read_text().replace('change-me', secrets.token_urlsafe(50)))"
 ```
+Ensure your `ORS_API_KEY` is set in `backend\.env` (obtained from OpenRouteService / HeiGIT).
 
 ### Frontend (.env)
 Copy the frontend environment template:
@@ -40,9 +41,36 @@ npm install
 npm run dev
 ```
 
-## 4. Running Tests
+## 4. API Endpoints and Testing
 
-Run backend unit and integration tests using pytest:
+### Health Check
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8000/api/health/" -Method Get
+```
+
+### Truck Routing (POST /api/route/)
+Calculates a truck route using the OpenRouteService `driving-hgv` profile:
+```powershell
+$body = @{
+  start = @{ lat = 49.41461; lng = 8.681495 }
+  end = @{ lat = 49.487459; lng = 8.466039 }
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:8000/api/route/" -Method Post -Body $body -ContentType "application/json"
+```
+
+**Response Format:**
+```json
+{
+  "geometry": [[49.4146, 8.6815], "..."],
+  "distance_km": 19.68,
+  "duration_min": 33.05
+}
+```
+
+## 5. Running Tests
+
+Run backend unit and integration tests (mocked ORS calls):
 ```powershell
 cd backend
 .\.venv\Scripts\pytest.exe
