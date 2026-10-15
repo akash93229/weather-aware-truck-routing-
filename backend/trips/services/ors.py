@@ -62,7 +62,7 @@ class OpenRouteServiceClient:
         headers = {
             'Authorization': self.api_key,
             'Content-Type': 'application/json',
-            'Accept': 'application/json',
+            'Accept': 'application/geo+json, application/json, */*',
         }
         payload = {
             'coordinates': [
