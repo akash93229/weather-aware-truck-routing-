@@ -149,3 +149,30 @@ export async function analyzeTrip(body, { onWakeupHint, signal } = {}) {
     clearTimeout(timeoutTimer);
   }
 }
+
+/**
+ * Fetch corridor weather risk heatmap across 0-48h forecast horizon.
+ * @param {object} body Trip request body (origin, destination, departure_time, load_weight_lb, etc.)
+ * @param {AbortSignal} [signal] Optional abort signal
+ * @returns {Promise<{start_time: string, hours: number, points: Array<{lat: number, lng: number, levels: number[]}>}>}
+ */
+export async function getHeatmap(body, signal) {
+  const res = await fetch(`${API_BASE_URL}/api/heatmap`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(body),
+    signal,
+  });
+
+  const data = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    throw new Error(extractErrorMessage(data, res.status));
+  }
+
+  return data;
+}
+
