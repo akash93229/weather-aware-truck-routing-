@@ -54,6 +54,8 @@ export default function MapView({
   isLoadingHeatmap = false,
   heatmapError = null,
   onRetryHeatmap,
+  is3D = true,
+  onToggle3D,
 }) {
   const mapRef = useRef(null);
   const [cursor, setCursor] = useState('auto');
@@ -63,7 +65,7 @@ export default function MapView({
   const heatmapFeaturesRef = useRef([]);
   const rafIdRef = useRef(null);
 
-  // Fit bounds when routes change
+  // Fit bounds and pitch camera when routes change
   useEffect(() => {
     if (!routes || routes.length === 0 || !mapRef.current) return;
 
@@ -84,15 +86,35 @@ export default function MapView({
 
     if (pointCount > 0 && mapRef.current) {
       try {
-        mapRef.current.fitBounds(
-          [[minLng, minLat], [maxLng, maxLat]],
-          { padding: 50, duration: 800 }
-        );
+        const map = mapRef.current.getMap ? mapRef.current.getMap() : mapRef.current;
+        if (map && map.fitBounds) {
+          map.fitBounds(
+            [[minLng, minLat], [maxLng, maxLat]],
+            {
+              padding: { top: 90, bottom: 120, left: 360, right: 400 },
+              pitch: is3D ? 50 : 0,
+              duration: 1200,
+            }
+          );
+        }
       } catch {
         // Map may still be loading tiles
       }
     }
-  }, [routes]);
+  }, [routes, is3D]);
+
+  // Smooth pitch transition when toggling 2D/3D mode
+  useEffect(() => {
+    if (!mapRef.current) return;
+    try {
+      const map = mapRef.current.getMap ? mapRef.current.getMap() : mapRef.current;
+      if (map && map.easeTo) {
+        map.easeTo({ pitch: is3D ? 50 : 0, duration: 800 });
+      }
+    } catch {
+      // ignore
+    }
+  }, [is3D]);
 
   // Build initial GeoJSON representation when heatmapData changes
   const initialHeatmapGeoJson = useMemo(() => {
@@ -287,6 +309,17 @@ export default function MapView({
           onMouseLeave={onMouseLeave}
           attributionControl={false}
         >
+          <div className="map-custom-controls">
+            <button
+              type="button"
+              className={`btn-map-3d ${is3D ? 'active' : ''}`}
+              onClick={onToggle3D}
+              id="toggle-3d-btn"
+              title={is3D ? 'Switch to 2D Top-Down View' : 'Switch to 3D Angled Perspective'}
+            >
+              <span className="dimension-tag">{is3D ? '3D' : '2D'}</span>
+            </button>
+          </div>
           <NavigationControl position="top-right" />
 
           {/* Corridor Heatmap Layer (Weight = level / 4) */}
@@ -339,9 +372,24 @@ export default function MapView({
             </Source>
           )}
 
-          {/* Routes Lines Layer */}
+          {/* Routes Lines Layer with Recommended Glow */}
           {routesGeoJson && routesGeoJson.features.length > 0 && (
             <Source id="routes-source" type="geojson" data={routesGeoJson}>
+              <Layer
+                id="routes-glow-layer"
+                type="line"
+                filter={['==', ['get', 'is_recommended'], true]}
+                paint={{
+                  'line-color': '#38bdf8',
+                  'line-width': 14,
+                  'line-blur': 6,
+                  'line-opacity': 0.45,
+                }}
+                layout={{
+                  'line-cap': 'round',
+                  'line-join': 'round',
+                }}
+              />
               <Layer
                 id="routes-layer"
                 type="line"
@@ -357,6 +405,33 @@ export default function MapView({
               />
             </Source>
           )}
+
+          {/* 3D Buildings Extrusion Layer at High Zoom (minzoom 15) */}
+          <Layer
+            id="3d-buildings"
+            source="carto"
+            source-layer="building"
+            type="fill-extrusion"
+            minzoom={15}
+            paint={{
+              'fill-extrusion-color': '#1e293b',
+              'fill-extrusion-height': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                15, 0,
+                16, ['coalesce', ['get', 'render_height'], ['get', 'height'], 20],
+              ],
+              'fill-extrusion-base': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                15, 0,
+                16, ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
+              ],
+              'fill-extrusion-opacity': 0.65,
+            }}
+          />
 
           {/* Checkpoints Circle Layer */}
           {checkpointsGeoJson && checkpointsGeoJson.features.length > 0 && (
