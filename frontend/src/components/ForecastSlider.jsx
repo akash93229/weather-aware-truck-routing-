@@ -1,22 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-
-function formatSliderTimestamp(startTimeIso, hour) {
-  if (!startTimeIso) return '';
-  try {
-    const baseMs = new Date(startTimeIso).getTime();
-    const targetDate = new Date(baseMs + hour * 3600 * 1000);
-
-    const weekday = targetDate.toLocaleDateString(undefined, { weekday: 'short' });
-    const day = targetDate.getDate();
-    const month = targetDate.toLocaleDateString(undefined, { month: 'short' });
-    const time = targetDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-
-    return `${weekday}, ${month} ${day}, ${time} (${tz})`;
-  } catch {
-    return `Hour +${hour}h`;
-  }
-}
+import { formatSliderTimestamp } from '../utils/time';
 
 export default function ForecastSlider({
   startTimeIso,
