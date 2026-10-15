@@ -132,3 +132,33 @@ class TestOpenMeteoProvider:
         res2 = provider.get_hourly([pt], start, end)
         assert mock_get.call_count == 1
         assert pt in res2
+
+    @patch('trips.services.weather.open_meteo.requests.get')
+    def test_multiday_date_range_requests(self, mock_get):
+        """Verify that trips lasting > 3 days pass full start_date and end_date."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'hourly': {
+                'time': ['2026-10-15T00:00', '2026-10-20T23:00'],
+                'wind_speed_10m': [8.0, 10.0],
+                'wind_gusts_10m': [10.0, 12.0],
+                'rain': [0.0, 0.0],
+                'showers': [0.0, 0.0],
+                'snowfall': [0.0, 0.0],
+            }
+        }
+        mock_get.return_value = mock_response
+
+        provider = OpenMeteoProvider()
+        pt = (41.8781, -87.6298)
+        start = datetime(2026, 10, 15, 8, 0, tzinfo=timezone.utc)
+        end = datetime(2026, 10, 20, 18, 0, tzinfo=timezone.utc)  # 5+ day trip
+
+        provider.get_hourly([pt], start, end)
+
+        assert mock_get.call_count == 1
+        sent_params = mock_get.call_args[1]['params']
+        assert sent_params['start_date'] == '2026-10-15'
+        assert sent_params['end_date'] == '2026-10-20'
+        assert 'forecast_days' not in sent_params
