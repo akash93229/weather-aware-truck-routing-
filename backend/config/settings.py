@@ -127,4 +127,4 @@ CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_str.split(',')
 # OpenRouteService configuration
 ORS_API_KEY = os.getenv('ORS_API_KEY', '')
 ORS_BASE_URL = os.getenv('ORS_BASE_URL', 'https://api.heigit.org/openrouteservice')
-HERE_API_KEY = os.getenv('HERE_API_KEY', '')
+TOMTOM_API_KEY = os.getenv('TOMTOM_API_KEY', '')
