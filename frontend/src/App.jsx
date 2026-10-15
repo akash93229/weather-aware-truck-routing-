@@ -127,7 +127,7 @@ export default function App() {
       {/* Wakeup Progress Hint */}
       {analysisProgressHint && (
         <div className="alert-hint" id="server-wakeup-hint">
-          <span className="error-icon">&#9203;</span>
+          <span className="error-icon">⏳</span>
           <span>{analysisProgressHint}</span>
         </div>
       )}
@@ -135,7 +135,7 @@ export default function App() {
       {/* Error Banner */}
       {analysisError && (
         <div className="alert-error" id="analysis-error-banner">
-          <span className="error-icon">&times;</span>
+          <span className="error-icon">✕</span>
           <span>{analysisError}</span>
         </div>
       )}
@@ -178,11 +178,11 @@ export default function App() {
       {/* Empty State Banner when no calculation done yet */}
       {!tripResults && !isLoadingAnalysis && (
         <div className="empty-state-card" id="empty-state-prompt">
-          <span className="empty-state-icon">&#128666;</span>
+          <span className="empty-state-icon">🚚</span>
           <h3 className="empty-state-title">Ready for Route Analysis</h3>
           <p className="empty-state-desc">
             Enter an origin and destination above, select load weight and departure time, or click{' '}
-            <strong>&quot;Try example trip (Chicago &rarr; Dallas)&quot;</strong> to evaluate safety and weather hazards across 3 distinct routes.
+            <strong>"Try example trip (Chicago → Dallas)"</strong> to evaluate safety and weather hazards across 3 distinct routes.
           </p>
         </div>
       )}
@@ -190,7 +190,7 @@ export default function App() {
       {/* Footer Attribution */}
       <footer className="app-footer">
         <p>
-          Map data &copy;{' '}
+          Map data ©{' '}
           <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
             OpenStreetMap contributors
           </a>{' '}

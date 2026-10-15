@@ -226,7 +226,7 @@ export default function TripForm({ onSubmit, isLoading }) {
           disabled={isLoading}
           id="try-example-trip-btn"
         >
-          Try example trip (Chicago &rarr; Dallas)
+          Try example trip (Chicago → Dallas)
         </button>
       </div>
 
@@ -235,7 +235,7 @@ export default function TripForm({ onSubmit, isLoading }) {
         <div className="form-field autocomplete-field" ref={originWrapperRef}>
           <label htmlFor="origin-input">
             Origin Location
-            {originCoord && <span className="coord-badge">&bull; {originCoord.lat.toFixed(4)}, {originCoord.lng.toFixed(4)}</span>}
+            {originCoord && <span className="coord-badge">• {originCoord.lat.toFixed(4)}, {originCoord.lng.toFixed(4)}</span>}
           </label>
           <div className="input-wrapper">
             <input
@@ -283,7 +283,7 @@ export default function TripForm({ onSubmit, isLoading }) {
         <div className="form-field autocomplete-field" ref={destWrapperRef}>
           <label htmlFor="destination-input">
             Destination Location
-            {destCoord && <span className="coord-badge">&bull; {destCoord.lat.toFixed(4)}, {destCoord.lng.toFixed(4)}</span>}
+            {destCoord && <span className="coord-badge">• {destCoord.lat.toFixed(4)}, {destCoord.lng.toFixed(4)}</span>}
           </label>
           <div className="input-wrapper">
             <input
@@ -346,7 +346,7 @@ export default function TripForm({ onSubmit, isLoading }) {
         <div className="form-field">
           <label htmlFor="load-weight-input">
             Load Weight (lbs)
-            <span className="field-hint">(1 &ndash; 80,000 lbs)</span>
+            <span className="field-hint">(1 – 80,000 lbs)</span>
           </label>
           <input
             id="load-weight-input"
@@ -382,16 +382,16 @@ export default function TripForm({ onSubmit, isLoading }) {
             value={scenario}
             onChange={(e) => setScenario(e.target.value)}
           >
-            <option value="live">Live Forecast (Open-Meteo)</option>
-            <option value="storm">Demo scenario: Severe Storm (Phase 4)</option>
-            <option value="calm">Demo scenario: Calm Weather (Phase 4)</option>
+            <option value="live">Live forecast (Open-Meteo)</option>
+            <option value="storm">Demo: Severe Storm (Phase 4)</option>
+            <option value="calm">Demo: Calm Weather (Phase 4)</option>
           </select>
         </div>
       </div>
 
       {formError && (
         <div className="form-error-banner" id="form-validation-error">
-          <span className="error-icon">&times;</span>
+          <span className="error-icon">✕</span>
           <span>{formError}</span>
         </div>
       )}

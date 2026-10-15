@@ -84,7 +84,7 @@ export default function ForecastSlider({
               onChange={onToggleHeatmap}
               className="toggle-checkbox"
             />
-            <span className="toggle-title">Corridor Weather Heatmap (0&ndash;48h)</span>
+            <span className="toggle-title">Corridor Weather Heatmap (0–48h)</span>
           </label>
 
           {isLoadingHeatmap && (
@@ -126,7 +126,7 @@ export default function ForecastSlider({
               title="Previous Hour"
               id="slider-prev-hour-btn"
             >
-              &larr; -1h
+              ← -1h
             </button>
             <button
               type="button"
@@ -135,7 +135,7 @@ export default function ForecastSlider({
               id="slider-play-pause-btn"
               title={isPlaying ? 'Pause animation' : 'Play 48h animation'}
             >
-              {isPlaying ? '&#10074;&#10074; Pause' : '&#9658; Animate'}
+              {isPlaying ? '⏸ Pause' : '▶ Animate'}
             </button>
             <button
               type="button"
@@ -144,7 +144,7 @@ export default function ForecastSlider({
               title="Next Hour"
               id="slider-next-hour-btn"
             >
-              +1h &rarr;
+              +1h →
             </button>
           </div>
 
@@ -170,7 +170,7 @@ export default function ForecastSlider({
           </div>
 
           <div className="slider-legend-hint">
-            <span className="hint-pill">&#9432; Hour 0 = Scheduled Departure Time</span>
+            <span className="hint-pill">ℹ Hour 0 = Scheduled Departure Time</span>
           </div>
         </div>
       )}

@@ -49,7 +49,7 @@ export default function RouteCards({
       {recommendation ? (
         <div className="recommendation-banner banner-safe" id="recommendation-safe-banner">
           <div className="banner-icon-col">
-            <span className="banner-icon-badge">&#10003;</span>
+            <span className="banner-icon-badge">✓</span>
           </div>
           <div className="banner-text-col">
             <div className="banner-title-row">
@@ -70,7 +70,7 @@ export default function RouteCards({
       ) : (
         <div className="recommendation-banner banner-blocked" id="recommendation-blocked-banner">
           <div className="banner-icon-col">
-            <span className="banner-icon-badge-blocked">&#9888;</span>
+            <span className="banner-icon-badge-blocked">⚠</span>
           </div>
           <div className="banner-text-col">
             <h3 className="banner-heading">No safe route at this departure time</h3>

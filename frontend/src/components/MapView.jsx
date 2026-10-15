@@ -443,7 +443,7 @@ export default function MapView({
 
                 {activePopup.properties.load_rule && (
                   <div className="popup-load-rule">
-                    <span className="load-rule-icon">&#9888;</span>
+                    <span className="load-rule-icon">⚠</span>
                     <span>{activePopup.properties.load_rule}</span>
                   </div>
                 )}
