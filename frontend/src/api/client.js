@@ -1,80 +1,151 @@
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '');
 
 /**
- * Fetch health check from Django backend with timeout and detailed error handling.
- * @returns {Promise<{status: string, service: string}>}
+ * Extract clear human-readable error message from backend error responses.
+ * Backend formats: { error: { code, message } } or { error: string } or { detail: string }
  */
-export async function getHealth() {
+function extractErrorMessage(data, fallbackStatus) {
+  if (!data) {
+    return `Request failed with HTTP ${fallbackStatus}`;
+  }
+  if (typeof data.error === 'object' && data.error?.message) {
+    return data.error.message;
+  }
+  if (typeof data.error === 'string') {
+    return data.error;
+  }
+  if (typeof data.detail === 'string') {
+    return data.detail;
+  }
+  if (typeof data.message === 'string') {
+    return data.message;
+  }
+  return `Request failed with HTTP ${fallbackStatus}`;
+}
+
+/**
+ * Health check endpoint.
+ */
+export async function getHealth(signal) {
   const controller = new AbortController();
+  const linkedSignal = signal || controller.signal;
   const timeoutId = setTimeout(() => controller.abort(), 8000);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/health/`, {
+    const res = await fetch(`${API_BASE_URL}/api/health/`, {
       method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
-      signal: controller.signal,
+      headers: { 'Accept': 'application/json' },
+      signal: linkedSignal,
     });
-
-    if (!response.ok) {
-      throw new Error(`Server returned HTTP ${response.status} (${response.statusText || 'Error'})`);
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(extractErrorMessage(data, res.status));
     }
-
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      throw new Error('Request timed out after 8 seconds. Backend is not responding.');
+    return await res.json();
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('Backend health check timed out after 8s');
     }
-    if (error instanceof TypeError) {
-      throw new Error(`Network error: Unable to connect to backend at ${API_BASE_URL}`);
+    if (err instanceof TypeError) {
+      throw new Error(`Unable to connect to backend server at ${API_BASE_URL}`);
     }
-    throw error;
+    throw err;
   } finally {
     clearTimeout(timeoutId);
   }
 }
 
 /**
- * Fetch truck route from Django backend.
- * @param {{lat: number, lng: number}} start
- * @param {{lat: number, lng: number}} end
- * @returns {Promise<{geometry: [number, number][], distance_km: number, duration_min: number}>}
+ * Geocode query using /api/geocode?q=
+ * @param {string} q Search query
+ * @param {AbortSignal} [signal] Optional cancellation signal
+ * @returns {Promise<Array<{lat: number, lng: number, display_name: string}>>}
  */
-export async function getRoute(start, end) {
+export async function getGeocode(q, signal) {
+  if (!q || !q.trim()) {
+    return [];
+  }
+
+  const res = await fetch(`${API_BASE_URL}/api/geocode?q=${encodeURIComponent(q.trim())}`, {
+    method: 'GET',
+    headers: { 'Accept': 'application/json' },
+    signal,
+  });
+
+  const data = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    throw new Error(extractErrorMessage(data, res.status));
+  }
+
+  return data?.results || [];
+}
+
+/**
+ * Analyze trip routes and weather risks.
+ * Handles 30s timeout with an 8s "server waking up" hint callback.
+ *
+ * @param {object} body Trip request body
+ * @param {object} [options]
+ * @param {Function} [options.onWakeupHint] Callback when request takes > 8s
+ * @param {AbortSignal} [options.signal] External cancellation signal
+ * @returns {Promise<object>} Analysis results { routes, recommendation }
+ */
+export async function analyzeTrip(body, { onWakeupHint, signal } = {}) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  // If external signal provided, abort controller when external signal aborts
+  if (signal) {
+    if (signal.aborted) {
+      controller.abort();
+    } else {
+      signal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
+  }
+
+  // 8 second hint timer
+  const wakeupTimer = setTimeout(() => {
+    if (onWakeupHint) {
+      onWakeupHint('Server is waking up and fetching real-time weather forecasts... please hold on.');
+    }
+  }, 8000);
+
+  // 30 second hard timeout
+  const timeoutTimer = setTimeout(() => {
+    controller.abort('TIMEOUT');
+  }, 30000);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/route/`, {
+    const res = await fetch(`${API_BASE_URL}/api/trips/analyze`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      body: JSON.stringify({ start, end }),
+      body: JSON.stringify(body),
       signal: controller.signal,
     });
 
-    const data = await response.json().catch(() => null);
+    const data = await res.json().catch(() => null);
 
-    if (!response.ok) {
-      const message = (data && (data.error || data.detail || (data.details && JSON.stringify(data.details))))
-        || `Routing failed with HTTP ${response.status}`;
-      throw new Error(message);
+    if (!res.ok) {
+      throw new Error(extractErrorMessage(data, res.status));
     }
 
     return data;
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      throw new Error('Routing request timed out after 15 seconds. Please try again.');
+  } catch (err) {
+    if (controller.signal.aborted && controller.signal.reason === 'TIMEOUT') {
+      throw new Error('Analysis timed out after 30 seconds. The server took too long to respond.');
     }
-    if (error instanceof TypeError) {
-      throw new Error(`Network error: Unable to connect to routing service at ${API_BASE_URL}`);
+    if (err.name === 'AbortError') {
+      throw new Error('Analysis request was cancelled.');
     }
-    throw error;
+    if (err instanceof TypeError) {
+      throw new Error(`Unable to connect to trip analysis service at ${API_BASE_URL}`);
+    }
+    throw err;
   } finally {
-    clearTimeout(timeoutId);
+    clearTimeout(wakeupTimer);
+    clearTimeout(timeoutTimer);
   }
 }
