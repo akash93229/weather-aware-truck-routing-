@@ -1,4 +1,4 @@
-@import 'leaflet/dist/leaflet.css';
+@import 'maplibre-gl/dist/maplibre-gl.css';
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -8,16 +8,16 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  background-color: #0f172a;
+  background-color: #0b1120;
   color: #f8fafc;
   min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 2rem 1.5rem;
+  padding: 1.5rem 1rem;
 }
 
 #root {
   width: 100%;
-  max-width: 980px;
+  max-width: 1200px;
 }
