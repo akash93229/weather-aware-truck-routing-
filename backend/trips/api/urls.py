@@ -4,6 +4,7 @@ from trips.api.views import (
     generate_route,
     geocode_view,
     analyze_trip_view,
+    heatmap_view,
 )
 
 urlpatterns = [
@@ -11,4 +12,5 @@ urlpatterns = [
     re_path(r'^route/?$', generate_route, name='generate-route'),
     re_path(r'^geocode/?$', geocode_view, name='geocode'),
     re_path(r'^trips/analyze/?$', analyze_trip_view, name='analyze-trip'),
+    re_path(r'^heatmap/?$', heatmap_view, name='heatmap'),
 ]

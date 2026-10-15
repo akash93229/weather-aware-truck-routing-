@@ -24,6 +24,7 @@ from trips.services.routing.service import get_routes
 from trips.services.routing.base import RoutingUnavailable, NoRouteFound
 from trips.services.geocoding import geocode_address
 from trips.services.analysis import analyze_routes
+from trips.services.heatmap import generate_heatmap
 from trips.services.weather.open_meteo import OpenMeteoProvider
 from trips.services.weather.fixture import FixtureWeatherProvider
 from trips.services.weather.base import Weather, WeatherUnavailable
@@ -300,3 +301,101 @@ def analyze_trip_view(request, routing_provider=None, weather_provider=None):
         'warnings': all_warnings,
         'routes': formatted_routes,
     })
+
+
+@api_view(['POST'])
+def heatmap_view(request, routing_provider=None, weather_provider=None):
+    """
+    POST /api/heatmap
+    Generates 0-48h weather risk heatmap along the corridor.
+    Reuses cached routes and cached weather where available.
+    """
+    serializer = TripAnalyzeSerializer(data=request.data)
+    if not serializer.is_valid():
+        first_err = next(iter(serializer.errors.items()))
+        msg = f'{first_err[0]}: {first_err[1][0]}' if isinstance(first_err[1], list) else str(serializer.errors)
+        return Response(
+            {
+                'error': {
+                    'code': 'invalid_input',
+                    'message': msg,
+                }
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    data = serializer.validated_data
+    orig = data['origin']
+    dest = data['destination']
+    dep_time = data['departure_time']
+    load_lb = data['load_weight_lb']
+    interval_mi = data.get('interval_miles', 25)
+    scenario = data.get('scenario', 'live')
+
+    # Step 1: Retrieve routes (hits cache if already computed by /api/trips/analyze)
+    try:
+        routes_result = get_routes(
+            origin=(orig['lat'], orig['lng']),
+            destination=(dest['lat'], dest['lng']),
+            provider=routing_provider,
+            load_weight_lb=load_lb,
+        )
+    except NoRouteFound as exc:
+        return Response(
+            {'error': {'code': 'no_route_found', 'message': str(exc)}},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    except RoutingUnavailable as exc:
+        return Response(
+            {'error': {'code': 'routing_unavailable', 'message': str(exc)}},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    except Exception as exc:
+        return Response(
+            {'error': {'code': 'routing_error', 'message': f'Routing error: {exc}'}},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    computed_routes = routes_result.get('routes', [])
+    if not computed_routes:
+        return Response(
+            {'error': {'code': 'no_route_found', 'message': 'No routes found for the given locations.'}},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    route_dicts = [
+        {
+            'route_id': r.id,
+            'label': r.label,
+            'geometry': r.points,
+            'duration_s': r.duration_s,
+            'distance_mi': r.distance_mi,
+        }
+        for r in computed_routes
+    ]
+
+    try:
+        heatmap_data = generate_heatmap(
+            routes=route_dicts,
+            departure_time=dep_time,
+            load_weight_lb=load_lb,
+            weather_provider=weather_provider,
+            scenario=scenario,
+            grid_interval_miles=float(interval_mi),
+            grid_offset_miles=18.0,
+            grid_deg=0.25,
+            max_points=250,
+        )
+    except WeatherUnavailable as exc:
+        return Response(
+            {'error': {'code': 'weather_unavailable', 'message': str(exc)}},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    except Exception as exc:
+        return Response(
+            {'error': {'code': 'heatmap_error', 'message': f'Heatmap error: {exc}'}},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    return Response(heatmap_data, status=status.HTTP_200_OK)
+
