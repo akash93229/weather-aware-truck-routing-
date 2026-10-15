@@ -42,6 +42,16 @@ cd frontend
 npm install
 npm run dev
 ```
+The application will launch on `http://127.0.0.1:5173/` by default.
+
+### Frontend Features & Architecture
+- **Interactive Map:** Built with MapLibre GL (`react-map-gl/maplibre`) using free key-less CARTO Dark Matter basemap.
+- **Multi-Route Visualization:** Renders 3 distinct commercial truck routes with unique colors; active and recommended routes are dynamically highlighted.
+- **Risk-Colored Checkpoints:** Rendered as a single high-performance GeoJSON circle layer colored using a color-blind friendly palette (Emerald, Sky Blue, Yellow, Orange, Crimson).
+- **Interactive Inspection Popups:** Click any checkpoint on the map to view mile marker, ETA with user timezone, sustained wind, wind gusts, rain rate, snow rate, risk level, primary risk drivers, and load weight escalation rules.
+- **Route Cards & Hazard Breakdown:** Interactive cards showing route distance, driving duration, average risk score, maximum risk level, and a stacked horizontal bar breaking down route mileage at each risk level.
+- **Top Recommendation Banner:** Explicitly shows why a route is recommended or alerts when no route is safe at the requested departure time.
+- **Address Autocomplete & Demo Scenarios:** Debounced geocoding search for origin and destination, quick "Try example trip (Chicago to Dallas)" preset, and scenario toggle between Live forecasts and Severe Storm simulations.
 
 ## 4. API Endpoints and Testing
 
