@@ -105,6 +105,14 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Cache configuration (Local memory cache with 30 min TTL for weather)
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'truck-routing-weather-cache',
+    }
+}
+
 # Django REST Framework: JSON only
 REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': [
