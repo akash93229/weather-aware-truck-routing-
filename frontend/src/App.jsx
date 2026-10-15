@@ -1,6 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getHealth, analyzeTrip } from './api/client';
 import { useHeatmap } from './hooks/useHeatmap';
+import Logo from './components/Logo';
+import Hero from './components/Hero';
 import TripForm from './components/TripForm';
 import MapView from './components/MapView';
 import RouteCards from './components/RouteCards';
@@ -17,6 +19,13 @@ export default function App() {
   const [tripResults, setTripResults] = useState(null); // { routes, recommendation, warnings }
   const [selectedRouteId, setSelectedRouteId] = useState(null);
   const [lastTripParams, setLastTripParams] = useState(null);
+
+  // UI View Modes & Panel Collapse state
+  const [showHero, setShowHero] = useState(true);
+  const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false);
+  const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false);
+  const [is3D, setIs3D] = useState(true);
+  const [mobileTab, setMobileTab] = useState('map'); // 'map' | 'form' | 'routes' | 'weather'
 
   // Heatmap visibility toggle
   const [showHeatmap, setShowHeatmap] = useState(true);
@@ -68,6 +77,11 @@ export default function App() {
     setAnalysisProgressHint('');
     setLastTripParams(formData);
 
+    // Dismiss hero automatically on search and focus routes panel
+    setShowHero(false);
+    setIsRightPanelCollapsed(false);
+    setMobileTab('routes');
+
     try {
       const data = await analyzeTrip(formData, {
         signal: controller.signal,
@@ -90,120 +104,254 @@ export default function App() {
     }
   };
 
-  const handleSelectRoute = (routeId) => {
+  const handleSelectRoute = useCallback((routeId) => {
     setSelectedRouteId(routeId);
-  };
+  }, []);
 
-  const handleToggleHeatmap = () => {
+  const handleToggleHeatmap = useCallback(() => {
     setShowHeatmap((prev) => !prev);
-  };
+  }, []);
+
+  const handleToggle3D = useCallback(() => {
+    setIs3D((prev) => !prev);
+  }, []);
 
   return (
-    <div className="app-container">
-      {/* Header */}
-      <header className="app-header">
-        <div className="title-badge-row">
-          <h1 className="app-title">Weather-Aware Truck Routing</h1>
+    <div className="stormlane-app" id="stormlane-root">
+      {/* Top Bar with Logo, Viewport Controls, and Backend Status */}
+      <header className="app-topbar" id="app-topbar">
+        <div className="topbar-left">
+          <Logo size="small" showWordmark={true} />
+        </div>
+
+        <div className="topbar-right">
+          <button
+            type="button"
+            className={`topbar-chip-btn ${is3D ? 'active' : ''}`}
+            onClick={handleToggle3D}
+            id="topbar-3d-btn"
+            title={is3D ? 'Switch to 2D flat view' : 'Switch to 3D angled perspective'}
+            aria-label="Toggle 3D View"
+          >
+            <span className="chip-tag">{is3D ? '3D View' : '2D View'}</span>
+          </button>
+
+          <button
+            type="button"
+            className={`topbar-chip-btn ${showHero ? 'active' : ''}`}
+            onClick={() => setShowHero((s) => !s)}
+            id="topbar-guide-btn"
+            title="Toggle Guide & Features Overview"
+            aria-label="Toggle Guide"
+          >
+            <span className="chip-tag">ℹ Overview</span>
+          </button>
+
           <div
             className={`status-pill status-${backendStatus}`}
+            id="api-status-pill"
             title={backendStatus === 'unavailable' ? backendError : 'Backend online'}
           >
             <span className="status-dot" />
-            <span>
+            <span className="status-label">
               {backendStatus === 'checking' && 'Connecting...'}
               {backendStatus === 'ok' && 'API Online'}
               {backendStatus === 'unavailable' && 'API Offline'}
             </span>
           </div>
         </div>
-        <p className="app-subtitle">
-          Commercial vehicle routing with multi-route risk analysis, real-time weather sampling, and safety recommendations
-        </p>
       </header>
 
-      {/* Main Parameters Form */}
-      <TripForm onSubmit={handleTripSubmit} isLoading={isLoadingAnalysis} />
-
-      {/* Wakeup Progress Hint */}
-      {analysisProgressHint && (
-        <div className="alert-hint" id="server-wakeup-hint">
-          <span className="error-icon">⏳</span>
-          <span>{analysisProgressHint}</span>
-        </div>
-      )}
-
-      {/* Error Banner */}
-      {analysisError && (
-        <div className="alert-error" id="analysis-error-banner">
-          <span className="error-icon">✕</span>
-          <span>{analysisError}</span>
-        </div>
-      )}
-
-      {/* Loading Skeletons */}
-      {isLoadingAnalysis && (
-        <div className="skeleton-container" id="loading-skeletons">
-          <div className="skeleton-banner" />
-          <div className="skeleton-grid">
-            <div className="skeleton-card" />
-            <div className="skeleton-card" />
-            <div className="skeleton-card" />
-          </div>
-        </div>
-      )}
-
-      {/* Results Strip & Cards */}
-      {tripResults && !isLoadingAnalysis && (
-        <RouteCards
-          routes={tripResults.routes}
-          recommendation={tripResults.recommendation}
+      {/* Main Full-Viewport Map Stage */}
+      <main className="viewport-stage" id="viewport-stage">
+        <MapView
+          routes={tripResults?.routes || []}
           selectedRouteId={selectedRouteId}
           onSelectRoute={handleSelectRoute}
+          heatmapData={heatmapData}
+          showHeatmap={showHeatmap}
+          onToggleHeatmap={handleToggleHeatmap}
+          isLoadingHeatmap={isLoadingHeatmap}
+          heatmapError={heatmapError}
+          onRetryHeatmap={retryHeatmap}
+          is3D={is3D}
+          onToggle3D={handleToggle3D}
         />
-      )}
 
-      {/* Map View with Corridor Heatmap and 0-48h Forecast Slider */}
-      <MapView
-        routes={tripResults?.routes || []}
-        selectedRouteId={selectedRouteId}
-        onSelectRoute={handleSelectRoute}
-        heatmapData={heatmapData}
-        showHeatmap={showHeatmap}
-        onToggleHeatmap={handleToggleHeatmap}
-        isLoadingHeatmap={isLoadingHeatmap}
-        heatmapError={heatmapError}
-        onRetryHeatmap={retryHeatmap}
-      />
+        {/* Hero Banner Modal/Overlay (dismissable) */}
+        {showHero && (
+          <Hero
+            onPlanTripClick={() => {
+              setShowHero(false);
+              setIsLeftPanelCollapsed(false);
+              setMobileTab('form');
+            }}
+            isVisible={showHero}
+          />
+        )}
 
-      {/* Empty State Banner when no calculation done yet */}
-      {!tripResults && !isLoadingAnalysis && (
-        <div className="empty-state-card" id="empty-state-prompt">
-          <span className="empty-state-icon">🚚</span>
-          <h3 className="empty-state-title">Ready for Route Analysis</h3>
-          <p className="empty-state-desc">
-            Enter an origin and destination above, select load weight and departure time, or click{' '}
-            <strong>"Try example trip (Chicago → Dallas)"</strong> to evaluate safety and weather hazards across 3 distinct routes.
-          </p>
-        </div>
-      )}
+        {/* Left Floating Glass Panel: Trip Form (Collapsible) */}
+        <aside
+          className={`floating-glass-panel panel-left ${isLeftPanelCollapsed ? 'collapsed' : ''} ${mobileTab === 'form' ? 'mobile-visible' : ''}`}
+          id="panel-trip-setup"
+          aria-label="Trip Parameters Panel"
+        >
+          <div className="panel-header">
+            <span className="panel-title-text">Trip Parameters</span>
+            <button
+              type="button"
+              className="btn-panel-toggle"
+              onClick={() => setIsLeftPanelCollapsed((c) => !c)}
+              title={isLeftPanelCollapsed ? 'Expand Trip Parameters' : 'Collapse Trip Parameters'}
+              id="collapse-left-panel-btn"
+              aria-expanded={!isLeftPanelCollapsed}
+            >
+              {isLeftPanelCollapsed ? '▶' : '◀'}
+            </button>
+          </div>
 
-      {/* Footer Attribution */}
-      <footer className="app-footer">
-        <p>
-          Map data ©{' '}
-          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
-            OpenStreetMap contributors
-          </a>{' '}
-          | Basemap style by{' '}
-          <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">
-            CARTO
-          </a>{' '}
-          | Weather forecasts provided by{' '}
-          <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">
-            Open-Meteo
-          </a>
-        </p>
-      </footer>
+          {!isLeftPanelCollapsed && (
+            <div className="panel-content-scroll">
+              <TripForm onSubmit={handleTripSubmit} isLoading={isLoadingAnalysis} />
+
+              {/* Wakeup Progress Hint */}
+              {analysisProgressHint && (
+                <div className="alert-hint" id="server-wakeup-hint">
+                  <span className="error-icon">⏳</span>
+                  <span>{analysisProgressHint}</span>
+                </div>
+              )}
+
+              {/* Error Banner */}
+              {analysisError && (
+                <div className="alert-error" id="analysis-error-banner">
+                  <span className="error-icon">✕</span>
+                  <span>{analysisError}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </aside>
+
+        {/* Right Floating Glass Panel: Recommendation & 3 Route Cards (Collapsible) */}
+        <aside
+          className={`floating-glass-panel panel-right ${isRightPanelCollapsed ? 'collapsed' : ''} ${mobileTab === 'routes' ? 'mobile-visible' : ''}`}
+          id="panel-route-cards"
+          aria-label="Route Recommendations Panel"
+        >
+          <div className="panel-header">
+            <span className="panel-title-text">
+              {tripResults ? 'Route Comparison (3)' : 'Route Analysis'}
+            </span>
+            <button
+              type="button"
+              className="btn-panel-toggle"
+              onClick={() => setIsRightPanelCollapsed((c) => !c)}
+              title={isRightPanelCollapsed ? 'Expand Route Cards' : 'Collapse Route Cards'}
+              id="collapse-right-panel-btn"
+              aria-expanded={!isRightPanelCollapsed}
+            >
+              {isRightPanelCollapsed ? '◀' : '▶'}
+            </button>
+          </div>
+
+          {!isRightPanelCollapsed && (
+            <div className="panel-content-scroll">
+              {/* Skeletons while analyzing */}
+              {isLoadingAnalysis && (
+                <div className="skeleton-container" id="loading-skeletons">
+                  <div className="skeleton-banner" />
+                  <div className="skeleton-grid">
+                    <div className="skeleton-card" />
+                    <div className="skeleton-card" />
+                    <div className="skeleton-card" />
+                  </div>
+                </div>
+              )}
+
+              {/* Loaded Route Cards & Recommendation */}
+              {tripResults && !isLoadingAnalysis && (
+                <RouteCards
+                  routes={tripResults.routes}
+                  recommendation={tripResults.recommendation}
+                  selectedRouteId={selectedRouteId}
+                  onSelectRoute={handleSelectRoute}
+                />
+              )}
+
+              {/* Empty State Prompt */}
+              {!tripResults && !isLoadingAnalysis && (
+                <div className="empty-state-card" id="empty-state-prompt">
+                  <span className="empty-state-icon">🚚</span>
+                  <h3 className="empty-state-title">Ready for Route Analysis</h3>
+                  <p className="empty-state-desc">
+                    Enter an origin and destination in Trip Parameters, or load the preset corridor below:
+                  </p>
+                  <button
+                    type="button"
+                    className="btn-quick-sample"
+                    id="quick-sample-chicago-dallas"
+                    onClick={() => {
+                      setIsLeftPanelCollapsed(false);
+                      setMobileTab('form');
+                      const exBtn = document.getElementById('try-example-trip-btn');
+                      if (exBtn) exBtn.click();
+                    }}
+                  >
+                    Try Sample (Chicago → Dallas)
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </aside>
+      </main>
+
+      {/* Mobile Bottom Navigation Bar (Phone width < 768px) */}
+      <nav className="mobile-nav-bar" id="mobile-nav-bar" aria-label="Mobile Navigation">
+        <button
+          type="button"
+          className={`mobile-tab-btn ${mobileTab === 'map' ? 'active' : ''}`}
+          onClick={() => setMobileTab('map')}
+          id="mobile-tab-map"
+        >
+          <span className="tab-icon">🗺</span>
+          <span className="tab-label">Map</span>
+        </button>
+        <button
+          type="button"
+          className={`mobile-tab-btn ${mobileTab === 'form' ? 'active' : ''}`}
+          onClick={() => {
+            setMobileTab('form');
+            setIsLeftPanelCollapsed(false);
+          }}
+          id="mobile-tab-form"
+        >
+          <span className="tab-icon">📋</span>
+          <span className="tab-label">Setup</span>
+        </button>
+        <button
+          type="button"
+          className={`mobile-tab-btn ${mobileTab === 'routes' ? 'active' : ''}`}
+          onClick={() => {
+            setMobileTab('routes');
+            setIsRightPanelCollapsed(false);
+          }}
+          id="mobile-tab-routes"
+        >
+          <span className="tab-icon">📊</span>
+          <span className="tab-label">Routes</span>
+        </button>
+        <button
+          type="button"
+          className={`mobile-tab-btn ${mobileTab === 'weather' ? 'active' : ''}`}
+          onClick={() => setMobileTab('weather')}
+          id="mobile-tab-weather"
+        >
+          <span className="tab-icon">⏱</span>
+          <span className="tab-label">48h Weather</span>
+        </button>
+      </nav>
     </div>
   );
 }
