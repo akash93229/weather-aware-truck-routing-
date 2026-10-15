@@ -51,6 +51,7 @@ The application will launch on `http://127.0.0.1:5173/` by default.
 - **Interactive Inspection Popups:** Click any checkpoint on the map to view mile marker, ETA with user timezone, sustained wind, wind gusts, rain rate, snow rate, risk level, primary risk drivers, and load weight escalation rules.
 - **Route Cards & Hazard Breakdown:** Interactive cards showing route distance, driving duration, average risk score, maximum risk level, and a stacked horizontal bar breaking down route mileage at each risk level.
 - **Top Recommendation Banner:** Explicitly shows why a route is recommended or alerts when no route is safe at the requested departure time.
+- **Corridor Weather Heatmap & 0-48h Slider:** Visualizes weather hazards along a 15-20 mile perpendicular corridor grid around all 3 routes. Scrubbing through the 0-48 hour forecast updates the MapLibre heatmap layer locally via `requestAnimationFrame` with zero network overhead.
 - **Address Autocomplete & Demo Scenarios:** Debounced geocoding search for origin and destination, quick "Try example trip (Chicago to Dallas)" preset, and scenario toggle between Live forecasts and Severe Storm simulations.
 
 ## 4. API Endpoints and Testing
@@ -81,6 +82,38 @@ $body = @{
 
 Invoke-RestMethod -Uri "http://localhost:8000/api/trips/analyze/" -Method Post -Body $body -ContentType "application/json"
 ```
+
+### Corridor Weather Heatmap (POST /api/heatmap/)
+Generates a 0-48 hour weather risk matrix across a deduplicated corridor grid along all 3 routes (including 15-20 mile perpendicular offset points). Reuses routes cached by `/api/trips/analyze/` without querying TomTom again:
+```powershell
+$dep = (Get-Date).ToUniversalTime().AddHours(2).ToString("yyyy-MM-ddTHH:mm:ssZ")
+$body = @{
+    origin = @{ lat = 41.8781; lng = -87.6298; label = "Chicago, IL" }
+    destination = @{ lat = 32.7767; lng = -96.7970; label = "Dallas, TX" }
+    departure_time = $dep
+    load_weight_lb = 42000
+    interval_miles = 25
+    scenario = "live" # options: "live", "storm", "calm"
+} | ConvertTo-Json -Depth 5
+
+Invoke-RestMethod -Uri "http://localhost:8000/api/heatmap/" -Method Post -Body $body -ContentType "application/json"
+```
+
+**Heatmap Response Format:**
+```json
+{
+  "start_time": "2026-10-15T18:00:00+00:00",
+  "hours": 49,
+  "points": [
+    {
+      "lat": 41.75,
+      "lng": -87.5,
+      "levels": [0, 0, 0, 1, 2, 1, 0, ...]
+    }
+  ]
+}
+```
+
 
 **Response Format:**
 ```json
