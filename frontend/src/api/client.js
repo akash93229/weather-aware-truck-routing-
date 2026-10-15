@@ -35,3 +35,46 @@ export async function getHealth() {
     clearTimeout(timeoutId);
   }
 }
+
+/**
+ * Fetch truck route from Django backend.
+ * @param {{lat: number, lng: number}} start
+ * @param {{lat: number, lng: number}} end
+ * @returns {Promise<{geometry: [number, number][], distance_km: number, duration_min: number}>}
+ */
+export async function getRoute(start, end) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/route/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ start, end }),
+      signal: controller.signal,
+    });
+
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      const message = (data && (data.error || data.detail || (data.details && JSON.stringify(data.details))))
+        || `Routing failed with HTTP ${response.status}`;
+      throw new Error(message);
+    }
+
+    return data;
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('Routing request timed out after 15 seconds. Please try again.');
+    }
+    if (error instanceof TypeError) {
+      throw new Error(`Network error: Unable to connect to routing service at ${API_BASE_URL}`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
