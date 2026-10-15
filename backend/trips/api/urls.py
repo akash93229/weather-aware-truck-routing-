@@ -1,7 +1,14 @@
-from django.urls import path
-from trips.api.views import health_check, generate_route
+from django.urls import re_path
+from trips.api.views import (
+    health_check,
+    generate_route,
+    geocode_view,
+    analyze_trip_view,
+)
 
 urlpatterns = [
-    path('health/', health_check, name='health-check'),
-    path('route/', generate_route, name='generate-route'),
+    re_path(r'^health/?$', health_check, name='health-check'),
+    re_path(r'^route/?$', generate_route, name='generate-route'),
+    re_path(r'^geocode/?$', geocode_view, name='geocode'),
+    re_path(r'^trips/analyze/?$', analyze_trip_view, name='analyze-trip'),
 ]
