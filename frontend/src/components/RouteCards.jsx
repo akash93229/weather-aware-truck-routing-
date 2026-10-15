@@ -29,6 +29,59 @@ function getRiskBadgeClass(level) {
   }
 }
 
+const LEVEL_KEY_CANDIDATES = {
+  0: ['low', '0'],
+  1: ['moderate', 'mod', '1'],
+  2: ['high', '2'],
+  3: ['severe', '3'],
+  4: ['no_travel', 'notravel', 'no-travel', '4'],
+};
+
+function getBreakdownSegments(milesByLevel, totalMiles) {
+  const segments = [];
+  let accountedMiles = 0;
+
+  for (const pal of RISK_PALETTE) {
+    const keys = LEVEL_KEY_CANDIDATES[pal.level] || [String(pal.level)];
+    let miles = 0;
+    for (const k of keys) {
+      if (milesByLevel && milesByLevel[k] !== undefined && milesByLevel[k] !== null) {
+        miles = Number(milesByLevel[k]) || 0;
+        break;
+      }
+    }
+    if (miles > 0) {
+      segments.push({
+        level: pal.level,
+        label: pal.label,
+        color: pal.color,
+        miles,
+      });
+      accountedMiles += miles;
+    }
+  }
+
+  // If no hazards or all-low, or accountedMiles == 0, show a full Low-colored bar
+  if (segments.length === 0) {
+    const fullMiles = totalMiles > 0 ? totalMiles : 1;
+    return [
+      {
+        level: 0,
+        label: 'Low',
+        color: '#10b981',
+        miles: fullMiles,
+        pct: 100,
+      },
+    ];
+  }
+
+  const baseMiles = Math.max(accountedMiles, totalMiles, 1);
+  return segments.map((s) => ({
+    ...s,
+    pct: Math.min(100, (s.miles / baseMiles) * 100),
+  }));
+}
+
 export default function RouteCards({
   routes = [],
   recommendation = null,
@@ -143,42 +196,38 @@ export default function RouteCards({
               </div>
 
               {/* Stacked Risk Bar */}
-              <div className="stacked-bar-container">
-                <div className="stacked-bar-label-row">
-                  <span className="stacked-bar-title">Hazard Exposure Breakdown</span>
-                  <span className="stacked-bar-total">{totalMiles.toFixed(0)} miles</span>
-                </div>
-                <div className="stacked-bar">
-                  {RISK_PALETTE.map((pal) => {
-                    const miles = milesByLevel[String(pal.level)] || 0;
-                    if (miles <= 0) return null;
-                    const pct = (miles / totalMiles) * 100;
-                    return (
-                      <div
-                        key={pal.level}
-                        className="bar-segment"
-                        style={{
-                          width: `${pct}%`,
-                          backgroundColor: pal.color,
-                        }}
-                        title={`${pal.label}: ${miles.toFixed(1)} mi (${pct.toFixed(0)}%)`}
-                      />
-                    );
-                  })}
-                </div>
-                <div className="stacked-bar-legend">
-                  {RISK_PALETTE.map((pal) => {
-                    const miles = milesByLevel[String(pal.level)] || 0;
-                    if (miles <= 0) return null;
-                    return (
-                      <span key={pal.level} className="legend-chip">
-                        <span className="chip-dot" style={{ backgroundColor: pal.color }} />
-                        {miles.toFixed(0)} mi {pal.label}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
+              {(() => {
+                const segments = getBreakdownSegments(milesByLevel, totalMiles);
+                return (
+                  <div className="stacked-bar-container">
+                    <div className="stacked-bar-label-row">
+                      <span className="stacked-bar-title">Hazard Exposure Breakdown</span>
+                      <span className="stacked-bar-total">{totalMiles.toFixed(0)} miles</span>
+                    </div>
+                    <div className="stacked-bar">
+                      {segments.map((seg) => (
+                        <div
+                          key={seg.level}
+                          className="bar-segment"
+                          style={{
+                            width: `${seg.pct}%`,
+                            backgroundColor: seg.color,
+                          }}
+                          title={`${seg.label}: ${seg.miles.toFixed(1)} mi (${seg.pct.toFixed(0)}%)`}
+                        />
+                      ))}
+                    </div>
+                    <div className="stacked-bar-legend">
+                      {segments.map((seg) => (
+                        <span key={seg.level} className="legend-chip">
+                          <span className="chip-dot" style={{ backgroundColor: seg.color }} />
+                          {seg.miles.toFixed(0)} mi {seg.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           );
         })}
