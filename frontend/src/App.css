@@ -1,0 +1,130 @@
+.app-card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 1rem;
+  padding: 2.5rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+}
+
+.app-header {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.app-title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: #f8fafc;
+  margin-bottom: 0.75rem;
+}
+
+.app-subtitle {
+  font-size: 1rem;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.status-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.75rem;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 0.75rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+}
+
+.badge-dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 9999px;
+}
+
+.badge-checking {
+  background: #1e293b;
+  color: #cbd5e1;
+  border: 1px solid #475569;
+}
+
+.badge-checking .badge-dot {
+  background: #94a3b8;
+  animation: pulse 1.5s infinite ease-in-out;
+}
+
+.badge-ok {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.badge-ok .badge-dot {
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+
+.badge-unavailable {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.badge-unavailable .badge-dot {
+  background: #ef4444;
+}
+
+.error-details {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 0.5rem;
+  padding: 0.875rem 1rem;
+  font-size: 0.875rem;
+  color: #fca5a5;
+  text-align: center;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.service-info {
+  font-size: 0.8125rem;
+  color: #64748b;
+}
+
+.retry-btn {
+  background: #3b82f6;
+  color: #ffffff;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.retry-btn:hover {
+  background: #2563eb;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
+}
