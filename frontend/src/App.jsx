@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { getHealth, analyzeTrip } from './api/client';
+import { useHeatmap } from './hooks/useHeatmap';
 import TripForm from './components/TripForm';
 import MapView from './components/MapView';
 import RouteCards from './components/RouteCards';
@@ -15,6 +16,19 @@ export default function App() {
   const [analysisError, setAnalysisError] = useState('');
   const [tripResults, setTripResults] = useState(null); // { routes, recommendation, warnings }
   const [selectedRouteId, setSelectedRouteId] = useState(null);
+  const [lastTripParams, setLastTripParams] = useState(null);
+
+  // Heatmap visibility toggle
+  const [showHeatmap, setShowHeatmap] = useState(true);
+
+  // Background heatmap hook: loads asynchronously without blocking route results
+  const isTripReady = Boolean(tripResults && tripResults.routes && tripResults.routes.length > 0);
+  const {
+    heatmapData,
+    isLoadingHeatmap,
+    heatmapError,
+    retryHeatmap,
+  } = useHeatmap(lastTripParams, isTripReady);
 
   // Active in-flight AbortController ref
   const inFlightControllerRef = useRef(null);
@@ -52,6 +66,7 @@ export default function App() {
     setIsLoadingAnalysis(true);
     setAnalysisError('');
     setAnalysisProgressHint('');
+    setLastTripParams(formData);
 
     try {
       const data = await analyzeTrip(formData, {
@@ -77,6 +92,10 @@ export default function App() {
 
   const handleSelectRoute = (routeId) => {
     setSelectedRouteId(routeId);
+  };
+
+  const handleToggleHeatmap = () => {
+    setShowHeatmap((prev) => !prev);
   };
 
   return (
@@ -143,11 +162,17 @@ export default function App() {
         />
       )}
 
-      {/* Map View */}
+      {/* Map View with Corridor Heatmap and 0-48h Forecast Slider */}
       <MapView
         routes={tripResults?.routes || []}
         selectedRouteId={selectedRouteId}
         onSelectRoute={handleSelectRoute}
+        heatmapData={heatmapData}
+        showHeatmap={showHeatmap}
+        onToggleHeatmap={handleToggleHeatmap}
+        isLoadingHeatmap={isLoadingHeatmap}
+        heatmapError={heatmapError}
+        onRetryHeatmap={retryHeatmap}
       />
 
       {/* Empty State Banner when no calculation done yet */}
