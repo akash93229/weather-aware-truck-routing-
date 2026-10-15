@@ -78,7 +78,7 @@ export async function getGeocode(q, signal) {
     throw new Error(extractErrorMessage(data, res.status));
   }
 
-  return data?.results || [];
+  return Array.isArray(data) ? data : (data?.results || []);
 }
 
 /**
