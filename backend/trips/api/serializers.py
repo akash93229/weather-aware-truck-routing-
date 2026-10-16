@@ -82,9 +82,9 @@ class TripAnalyzeSerializer(serializers.Serializer):
         now = datetime.now(timezone.utc)
         horizon = now + timedelta(days=16)
 
-        # Allow slight grace for past requests within 2 hours
-        if dt < now - timedelta(hours=2):
-            raise serializers.ValidationError('Departure time cannot be in the past.')
+        # Reject departures more than 1 hour in the past
+        if dt < now - timedelta(hours=1):
+            raise serializers.ValidationError('Departure time cannot be more than 1 hour in the past.')
         if dt > horizon:
             raise serializers.ValidationError('Departure time must be within the 16-day forecast window.')
 
