@@ -108,7 +108,7 @@ def get_routes(
         active_provider = provider
         raw_name = getattr(provider, 'name', 'custom')
         provider_used = raw_name if isinstance(raw_name, str) else 'mock'
-    elif getattr(settings, 'HERE_API_KEY', None):
+    elif getattr(settings, 'ROUTING_PROVIDER', '').lower() == 'here' and getattr(settings, 'HERE_API_KEY', None):
         active_provider = HERERoutingProvider()
         provider_used = 'here'
     elif getattr(settings, 'TOMTOM_API_KEY', None):
