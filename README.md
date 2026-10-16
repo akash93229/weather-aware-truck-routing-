@@ -1,5 +1,8 @@
 # Weather-Aware Truck Routing Application
 
+[![CI](https://github.com/akash93229/weather-aware-truck-routing-/actions/workflows/ci.yml/badge.svg?branch=ui-redesign)](https://github.com/akash93229/weather-aware-truck-routing-/actions/workflows/ci.yml)
+*(Note: status badge currently tracks `?branch=ui-redesign`; update query to `?branch=main` after merging into main)*
+
 A commercial truck routing and weather hazard intelligence platform built with **React + TypeScript** and **Python + Django REST Framework**. It helps dispatchers and commercial drivers select the safest route balancing real-time weather risk, truck load weight constraints, and travel time.
 
 ---
