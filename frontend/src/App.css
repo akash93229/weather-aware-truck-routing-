@@ -67,7 +67,11 @@ html,
 body,
 #root {
   width: 100%;
+  max-width: 100%;
   height: 100%;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
   overflow: hidden;
   background-color: var(--bg-deep);
   color: var(--text-main);
@@ -113,8 +117,10 @@ select:focus-visible {
 
 .stormlane-app {
   position: relative;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  height: 100dvh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -221,7 +227,7 @@ select:focus-visible {
   position: relative;
   flex: 1;
   width: 100%;
-  height: calc(100vh - 56px);
+  height: calc(100% - 56px);
   overflow: hidden;
 }
 
@@ -423,7 +429,7 @@ select:focus-visible {
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  width: min(860px, calc(100vw - 380px));
+  width: min(860px, calc(100% - 40px));
   z-index: 25;
   background: rgba(11, 17, 32, 0.88);
   backdrop-filter: blur(18px);
@@ -612,7 +618,7 @@ select:focus-visible {
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 45;
-  width: min(620px, calc(100vw - 32px));
+  width: min(620px, calc(100% - 32px));
   background: rgba(11, 17, 32, 0.92);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
@@ -1317,7 +1323,7 @@ select:focus-visible {
   }
 
   .forecast-slider-container {
-    width: calc(100vw - 16px);
+    width: calc(100% - 16px);
     bottom: 64px;
     padding: 0.6rem 0.75rem;
   }
@@ -1330,7 +1336,7 @@ select:focus-visible {
   }
 
   .hero-section {
-    width: calc(100vw - 20px);
+    width: calc(100% - 20px);
     padding: 1.5rem 1rem;
   }
 
