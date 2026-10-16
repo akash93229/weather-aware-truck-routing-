@@ -337,6 +337,48 @@ select:focus-visible {
   border-radius: 9999px;
 }
 
+/* Map Footer Attribution Line */
+.map-attribution-line {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.62rem;
+  color: rgba(148, 163, 184, 0.7);
+  z-index: 15;
+  pointer-events: auto;
+  white-space: nowrap;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.map-attribution-line a {
+  color: rgba(226, 232, 240, 0.85);
+  text-decoration: none;
+}
+
+.map-attribution-line a:hover {
+  color: var(--accent-cyan);
+  text-decoration: underline;
+}
+
+.map-attribution-line .sep {
+  opacity: 0.4;
+}
+
+@media (max-width: 767px) {
+  .map-attribution-line {
+    bottom: 58px;
+    font-size: 0.54rem;
+    padding: 0.08rem 0.35rem;
+  }
+}
+
 /* ==========================================================================
    Floating Glass Panels (Left = Form, Right = Route Cards)
    ========================================================================== */
