@@ -533,7 +533,23 @@ export default function MapView({
                 id="checkpoints-layer"
                 type="circle"
                 paint={{
-                  'circle-radius': 6.5,
+                  'circle-radius': [
+                    'match',
+                    ['get', 'risk_level'],
+                    0, 3.5,
+                    1, 5.0,
+                    2, 7.0,
+                    3, 7.0,
+                    4, 7.0,
+                    4.0,
+                  ],
+                  'circle-opacity': [
+                    'match',
+                    ['get', 'risk_level'],
+                    0, 0.4,
+                    1, 0.85,
+                    1.0,
+                  ],
                   'circle-color': [
                     'match',
                     ['get', 'risk_level'],
@@ -544,8 +560,32 @@ export default function MapView({
                     4, '#ef4444',
                     '#94a3b8',
                   ],
-                  'circle-stroke-width': 1.5,
-                  'circle-stroke-color': '#0f172a',
+                  'circle-stroke-width': [
+                    'match',
+                    ['get', 'risk_level'],
+                    0, 0.5,
+                    1, 1.2,
+                    2, 1.8,
+                    3, 2.0,
+                    4, 2.0,
+                    1.0,
+                  ],
+                  'circle-stroke-color': [
+                    'match',
+                    ['get', 'risk_level'],
+                    0, 'rgba(15, 23, 42, 0.4)',
+                    1, '#0f172a',
+                    2, '#ffffff',
+                    3, '#ffffff',
+                    4, '#ffffff',
+                    '#ffffff',
+                  ],
+                  'circle-stroke-opacity': [
+                    'match',
+                    ['get', 'risk_level'],
+                    0, 0.4,
+                    1.0,
+                  ],
                 }}
               />
             </Source>
