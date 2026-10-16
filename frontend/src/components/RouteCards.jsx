@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { RISK_PALETTE } from './RiskLegend';
 
 function formatDuration(seconds) {
@@ -9,6 +10,15 @@ function formatDuration(seconds) {
   }
   return `${mins}m`;
 }
+
+const ROUTE_CANONICAL_ORDER = {
+  fastest: 1,
+  route_1: 1,
+  'alternative 1': 2,
+  route_2: 2,
+  'alternative 2': 3,
+  route_3: 3,
+};
 
 const RISK_LABELS = {
   0: 'Low',
@@ -88,6 +98,19 @@ export default function RouteCards({
   selectedRouteId,
   onSelectRoute,
 }) {
+  // Show route cards in consistent order: Fastest, Alternative 1, Alternative 2
+  // Do NOT reorder by selection or by recommendation
+  const sortedRoutes = useMemo(() => {
+    if (!routes || routes.length === 0) return [];
+    return [...routes].sort((a, b) => {
+      const keyA = (a.label || a.id || '').trim().toLowerCase();
+      const keyB = (b.label || b.id || '').trim().toLowerCase();
+      const orderA = ROUTE_CANONICAL_ORDER[keyA] ?? 99;
+      const orderB = ROUTE_CANONICAL_ORDER[keyB] ?? 99;
+      return orderA - orderB;
+    });
+  }, [routes]);
+
   if (!routes || routes.length === 0) {
     return null;
   }
@@ -134,9 +157,9 @@ export default function RouteCards({
         </div>
       )}
 
-      {/* Cards List */}
+      {/* Cards List in consistent order */}
       <div className="route-cards-grid">
-        {routes.map((route) => {
+        {sortedRoutes.map((route) => {
           const isSelected = route.id === selectedRouteId;
           const isRecommended = Boolean(route.recommended);
           const isBlocked = Boolean(route.summary?.blocked);

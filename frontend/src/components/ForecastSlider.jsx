@@ -56,8 +56,8 @@ export default function ForecastSlider({
   }, [isPlaying, hoursCount, onHourChange]);
 
   return (
-    <div className="forecast-slider-panel" id="forecast-slider-panel">
-      <div className="slider-top-row">
+    <div className="forecast-slider-container forecast-slider-panel" id="forecast-slider-panel">
+      <div className="slider-header-row slider-top-row">
         <div className="toggle-group">
           <label className="toggle-label" htmlFor="heatmap-layer-toggle">
             <input

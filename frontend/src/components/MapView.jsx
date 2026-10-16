@@ -44,6 +44,60 @@ function getRiskBadgeColor(level) {
   }
 }
 
+function getMapPadding() {
+  const width = typeof window !== 'undefined' ? window.innerWidth : 1440;
+  const height = typeof window !== 'undefined' ? window.innerHeight : 900;
+
+  // Phone (< 768px): bottom sheet covers bottom portion of screen
+  if (width < 768) {
+    const bottomSheetHeight = Math.min(Math.round(height * 0.45), 360);
+    return {
+      top: 60,
+      bottom: bottomSheetHeight + 20,
+      left: 20,
+      right: 20,
+    };
+  }
+
+  // Tablet (768px - 1024px): left panel ~300px, right panel ~320px
+  if (width <= 1024) {
+    return {
+      top: 70,
+      bottom: 100,
+      left: 310,
+      right: 330,
+    };
+  }
+
+  // Small desktop (1024px - 1366px): left panel 350px, right panel 380px
+  if (width <= 1366) {
+    return {
+      top: 75,
+      bottom: 110,
+      left: 370,
+      right: 400,
+    };
+  }
+
+  // Desktop (1440px):
+  if (width <= 1600) {
+    return {
+      top: 80,
+      bottom: 120,
+      left: 380,
+      right: 420,
+    };
+  }
+
+  // Large desktop (1920px+):
+  return {
+    top: 90,
+    bottom: 130,
+    left: 420,
+    right: 450,
+  };
+}
+
 export default function MapView({
   routes = [],
   selectedRouteId,
@@ -58,6 +112,7 @@ export default function MapView({
   onToggle3D,
 }) {
   const mapRef = useRef(null);
+  const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [cursor, setCursor] = useState('auto');
   const [activePopup, setActivePopup] = useState(null);
 
@@ -65,43 +120,73 @@ export default function MapView({
   const heatmapFeaturesRef = useRef([]);
   const rafIdRef = useRef(null);
 
-  // Fit bounds and pitch camera when routes change
-  useEffect(() => {
+  // Fit bounds on ALL 3 routes with padding for panels and bottom bar
+  const fitRoutesToBounds = useCallback(() => {
     if (!routes || routes.length === 0 || !mapRef.current) return;
 
     let minLng = 180, maxLng = -180, minLat = 90, maxLat = -90;
     let pointCount = 0;
 
     routes.forEach((r) => {
-      if (r.geometry && r.geometry.length) {
-        r.geometry.forEach(([lng, lat]) => {
-          if (lng < minLng) minLng = lng;
-          if (lng > maxLng) maxLng = lng;
-          if (lat < minLat) minLat = lat;
-          if (lat > maxLat) maxLat = lat;
-          pointCount++;
+      // Coordinates can be directly in r.geometry (array of [lng, lat]) or r.geometry.coordinates
+      const coords = Array.isArray(r.geometry)
+        ? r.geometry
+        : (r.geometry && Array.isArray(r.geometry.coordinates) ? r.geometry.coordinates : []);
+
+      coords.forEach((coord) => {
+        if (Array.isArray(coord) && coord.length >= 2) {
+          const [lng, lat] = coord;
+          if (typeof lng === 'number' && typeof lat === 'number') {
+            if (lng < minLng) minLng = lng;
+            if (lng > maxLng) maxLng = lng;
+            if (lat < minLat) minLat = lat;
+            if (lat > maxLat) maxLat = lat;
+            pointCount++;
+          }
+        }
+      });
+
+      // Also incorporate checkpoints if any
+      if (r.checkpoints && Array.isArray(r.checkpoints)) {
+        r.checkpoints.forEach((cp) => {
+          if (typeof cp.lng === 'number' && typeof cp.lat === 'number') {
+            if (cp.lng < minLng) minLng = cp.lng;
+            if (cp.lng > maxLng) maxLng = cp.lng;
+            if (cp.lat < minLat) minLat = cp.lat;
+            if (cp.lat > maxLat) maxLat = cp.lat;
+            pointCount++;
+          }
         });
       }
     });
 
-    if (pointCount > 0 && mapRef.current) {
-      try {
-        const map = mapRef.current.getMap ? mapRef.current.getMap() : mapRef.current;
-        if (map && map.fitBounds) {
-          map.fitBounds(
-            [[minLng, minLat], [maxLng, maxLat]],
-            {
-              padding: { top: 90, bottom: 120, left: 360, right: 400 },
-              pitch: is3D ? 50 : 0,
-              duration: 1200,
-            }
-          );
-        }
-      } catch {
-        // Map may still be loading tiles
+    if (pointCount === 0) return;
+
+    const bounds = [[minLng, minLat], [maxLng, maxLat]];
+    const padding = getMapPadding();
+
+    try {
+      const map = mapRef.current.getMap ? mapRef.current.getMap() : mapRef.current;
+      if (map && map.fitBounds) {
+        map.fitBounds(bounds, {
+          padding,
+          pitch: is3D ? 45 : 0,
+          duration: 1200,
+          maxZoom: 11,
+        });
       }
+    } catch (err) {
+      console.warn('fitBounds error:', err);
     }
   }, [routes, is3D]);
+
+  // Trigger fit bounds on routes change, 3D toggle, or map load
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fitRoutesToBounds();
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [fitRoutesToBounds, isMapLoaded]);
 
   // Smooth pitch transition when toggling 2D/3D mode
   useEffect(() => {
@@ -135,7 +220,7 @@ export default function MapView({
           id: idx,
           levels: p.levels,
           level: lvl,
-          weight: lvl / 4.0,
+          weight: lvl === 0 ? 0 : lvl / 4.0,
         },
       };
     });
@@ -178,7 +263,7 @@ export default function MapView({
         const f = feats[i];
         const lvl = f.properties.levels?.[hour] ?? 0;
         f.properties.level = lvl;
-        f.properties.weight = lvl / 4.0;
+        f.properties.weight = lvl === 0 ? 0 : lvl / 4.0;
       }
 
       source.setData({
@@ -308,6 +393,7 @@ export default function MapView({
           onMouseEnter={onMouseEnter}
           onMouseLeave={onMouseLeave}
           attributionControl={false}
+          onLoad={() => setIsMapLoaded(true)}
         >
           <div className="map-custom-controls">
             <button
@@ -322,18 +408,19 @@ export default function MapView({
           </div>
           <NavigationControl position="top-right" />
 
-          {/* Corridor Heatmap Layer (Weight = level / 4) */}
+          {/* Corridor Heatmap Layer (smooth cloud rendered below routes and checkpoints) */}
           {initialHeatmapGeoJson && (
             <Source id="heatmap-source" type="geojson" data={initialHeatmapGeoJson}>
               <Layer
                 id="heatmap-glow-layer"
                 type="heatmap"
+                beforeId={routes && routes.length > 0 ? 'routes-glow-layer' : undefined}
                 paint={{
                   'heatmap-weight': [
                     'interpolate',
                     ['linear'],
                     ['get', 'level'],
-                    0, 0.05,
+                    0, 0.0,
                     1, 0.25,
                     2, 0.5,
                     3, 0.75,
@@ -343,30 +430,31 @@ export default function MapView({
                     'interpolate',
                     ['linear'],
                     ['zoom'],
-                    0, 1,
-                    6, 2.5,
-                    9, 4,
+                    0, 0.6,
+                    4, 1.2,
+                    7, 2.0,
+                    10, 3.2,
                   ],
                   'heatmap-color': [
                     'interpolate',
                     ['linear'],
                     ['heatmap-density'],
                     0, 'rgba(0, 0, 0, 0)',
-                    0.2, '#10b981', // Low: Emerald
-                    0.4, '#0ea5e9', // Moderate: Sky blue
-                    0.6, '#eab308', // High: Golden yellow
-                    0.8, '#f97316', // Severe: Orange
-                    1.0, '#ef4444', // No Travel: Crimson
+                    0.2, 'rgba(250, 204, 21, 0.45)', // light yellow
+                    0.4, '#eab308',                  // golden yellow
+                    0.7, '#f97316',                  // vibrant orange
+                    1.0, '#ef4444',                  // strong red
                   ],
                   'heatmap-radius': [
                     'interpolate',
                     ['linear'],
                     ['zoom'],
-                    0, 18,
-                    5, 30,
-                    8, 50,
+                    0, 30,
+                    4, 55,
+                    7, 95,
+                    10, 150,
                   ],
-                  'heatmap-opacity': showHeatmap ? 0.8 : 0,
+                  'heatmap-opacity': showHeatmap ? 0.6 : 0,
                 }}
               />
             </Source>
