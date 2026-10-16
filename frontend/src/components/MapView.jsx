@@ -220,7 +220,7 @@ export default function MapView({
           id: idx,
           levels: p.levels,
           level: lvl,
-          weight: lvl / 4.0,
+          weight: lvl === 0 ? 0 : lvl / 4.0,
         },
       };
     });
@@ -263,7 +263,7 @@ export default function MapView({
         const f = feats[i];
         const lvl = f.properties.levels?.[hour] ?? 0;
         f.properties.level = lvl;
-        f.properties.weight = lvl / 4.0;
+        f.properties.weight = lvl === 0 ? 0 : lvl / 4.0;
       }
 
       source.setData({
@@ -408,18 +408,19 @@ export default function MapView({
           </div>
           <NavigationControl position="top-right" />
 
-          {/* Corridor Heatmap Layer (Weight = level / 4) */}
+          {/* Corridor Heatmap Layer (smooth cloud rendered below routes and checkpoints) */}
           {initialHeatmapGeoJson && (
             <Source id="heatmap-source" type="geojson" data={initialHeatmapGeoJson}>
               <Layer
                 id="heatmap-glow-layer"
                 type="heatmap"
+                beforeId={routes && routes.length > 0 ? 'routes-glow-layer' : undefined}
                 paint={{
                   'heatmap-weight': [
                     'interpolate',
                     ['linear'],
                     ['get', 'level'],
-                    0, 0.05,
+                    0, 0.0,
                     1, 0.25,
                     2, 0.5,
                     3, 0.75,
@@ -429,30 +430,31 @@ export default function MapView({
                     'interpolate',
                     ['linear'],
                     ['zoom'],
-                    0, 1,
-                    6, 2.5,
-                    9, 4,
+                    0, 0.6,
+                    4, 1.2,
+                    7, 2.0,
+                    10, 3.2,
                   ],
                   'heatmap-color': [
                     'interpolate',
                     ['linear'],
                     ['heatmap-density'],
                     0, 'rgba(0, 0, 0, 0)',
-                    0.2, '#10b981', // Low: Emerald
-                    0.4, '#0ea5e9', // Moderate: Sky blue
-                    0.6, '#eab308', // High: Golden yellow
-                    0.8, '#f97316', // Severe: Orange
-                    1.0, '#ef4444', // No Travel: Crimson
+                    0.2, 'rgba(250, 204, 21, 0.45)', // light yellow
+                    0.4, '#eab308',                  // golden yellow
+                    0.7, '#f97316',                  // vibrant orange
+                    1.0, '#ef4444',                  // strong red
                   ],
                   'heatmap-radius': [
                     'interpolate',
                     ['linear'],
                     ['zoom'],
-                    0, 18,
-                    5, 30,
-                    8, 50,
+                    0, 30,
+                    4, 55,
+                    7, 95,
+                    10, 150,
                   ],
-                  'heatmap-opacity': showHeatmap ? 0.8 : 0,
+                  'heatmap-opacity': showHeatmap ? 0.6 : 0,
                 }}
               />
             </Source>
