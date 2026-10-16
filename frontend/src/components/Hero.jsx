@@ -1,11 +1,22 @@
 import Logo from './Logo';
 
-export default function Hero({ onPlanTripClick, isVisible = true }) {
+export default function Hero({ onPlanTripClick, onClose, isVisible = true }) {
   if (!isVisible) return null;
 
   return (
     <section className="hero-section" id="hero-banner">
       <div className="hero-backdrop-glow" />
+      {onClose && (
+        <button
+          type="button"
+          className="hero-close-btn"
+          onClick={onClose}
+          id="hero-close-btn"
+          aria-label="Close overview"
+        >
+          ✕
+        </button>
+      )}
       <div className="hero-content">
         <div className="hero-logo-row">
           <Logo size="large" showWordmark={false} />

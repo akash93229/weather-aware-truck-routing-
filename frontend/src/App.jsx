@@ -188,6 +188,7 @@ export default function App() {
               setIsLeftPanelCollapsed(false);
               setMobileTab('form');
             }}
+            onClose={() => setShowHero(false)}
             isVisible={showHero}
           />
         )}
@@ -203,7 +204,13 @@ export default function App() {
             <button
               type="button"
               className="btn-panel-toggle"
-              onClick={() => setIsLeftPanelCollapsed((c) => !c)}
+              onClick={() => {
+                if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                  setMobileTab('map');
+                } else {
+                  setIsLeftPanelCollapsed((c) => !c);
+                }
+              }}
               title={isLeftPanelCollapsed ? 'Expand Trip Parameters' : 'Collapse Trip Parameters'}
               id="collapse-left-panel-btn"
               aria-expanded={!isLeftPanelCollapsed}
@@ -248,7 +255,13 @@ export default function App() {
             <button
               type="button"
               className="btn-panel-toggle"
-              onClick={() => setIsRightPanelCollapsed((c) => !c)}
+              onClick={() => {
+                if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                  setMobileTab('map');
+                } else {
+                  setIsRightPanelCollapsed((c) => !c);
+                }
+              }}
               title={isRightPanelCollapsed ? 'Expand Route Cards' : 'Collapse Route Cards'}
               id="collapse-right-panel-btn"
               aria-expanded={!isRightPanelCollapsed}
@@ -325,7 +338,10 @@ export default function App() {
         <button
           type="button"
           className={`mobile-tab-btn ${mobileTab === 'map' ? 'active' : ''}`}
-          onClick={() => setMobileTab('map')}
+          onClick={() => {
+            setMobileTab('map');
+            setShowHero(false);
+          }}
           id="mobile-tab-map"
         >
           <span className="tab-icon">🗺</span>
@@ -337,6 +353,7 @@ export default function App() {
           onClick={() => {
             setMobileTab('form');
             setIsLeftPanelCollapsed(false);
+            setShowHero(false);
           }}
           id="mobile-tab-form"
         >
@@ -349,6 +366,7 @@ export default function App() {
           onClick={() => {
             setMobileTab('routes');
             setIsRightPanelCollapsed(false);
+            setShowHero(false);
           }}
           id="mobile-tab-routes"
         >
@@ -358,7 +376,11 @@ export default function App() {
         <button
           type="button"
           className={`mobile-tab-btn ${mobileTab === 'weather' ? 'active' : ''}`}
-          onClick={() => setMobileTab('weather')}
+          onClick={() => {
+            setMobileTab('weather');
+            setShowHeatmap(true);
+            setShowHero(false);
+          }}
           id="mobile-tab-weather"
         >
           <span className="tab-icon">⏱</span>
