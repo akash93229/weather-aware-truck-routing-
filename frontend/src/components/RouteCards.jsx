@@ -93,12 +93,11 @@ function getBreakdownSegments(milesByLevel, totalMiles) {
 }
 
 function getRouteColor(route, idx) {
-  const norm = (route.label || route.id || '').trim().toLowerCase();
-  if (norm.includes('fastest') || norm === 'route_1') return '#38bdf8';
-  if (norm.includes('alternative 1') || norm.includes('alt 1') || norm === 'route_2') return '#a855f7';
-  if (norm.includes('alternative 2') || norm.includes('alt 2') || norm === 'route_3') return '#f97316';
-  const defaults = ['#38bdf8', '#a855f7', '#f97316'];
-  return defaults[idx % defaults.length];
+  const norm = (route.label || route.id || '').toLowerCase();
+  if (norm.includes('fast') || norm === 'route_1') return '#38bdf8';
+  if (norm.includes('alt 1') || norm.includes('alternative 1') || norm === 'route_2') return '#a855f7';
+  if (norm.includes('alt 2') || norm.includes('alternative 2') || norm === 'route_3') return '#f97316';
+  return ['#38bdf8', '#a855f7', '#f97316'][idx % 3];
 }
 
 export default function RouteCards({

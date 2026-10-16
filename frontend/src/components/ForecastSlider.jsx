@@ -10,6 +10,8 @@ export default function ForecastSlider({
   isLoadingHeatmap,
   heatmapError,
   onRetryHeatmap,
+  isLeftCollapsed = false,
+  isRightCollapsed = false,
 }) {
   const [currentHour, setCurrentHour] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -56,17 +58,21 @@ export default function ForecastSlider({
   }, [isPlaying, hoursCount, onHourChange]);
 
   return (
-    <div className="forecast-slider-container forecast-slider-panel" id="forecast-slider-panel">
+    <div
+      className={`forecast-slider-container forecast-slider-panel ${isLeftCollapsed ? 'left-collapsed' : ''} ${isRightCollapsed ? 'right-collapsed' : ''}`}
+      id="forecast-slider-panel"
+    >
       <div className="slider-header-row slider-top-row">
         <div className="toggle-group">
-          <label className="toggle-label" htmlFor="heatmap-layer-toggle">
+          <label className="toggle-switch-label" htmlFor="heatmap-layer-toggle">
             <input
               id="heatmap-layer-toggle"
               type="checkbox"
               checked={showHeatmap}
               onChange={onToggleHeatmap}
-              className="toggle-checkbox"
+              className="toggle-switch-input"
             />
+            <span className="toggle-switch-slider" />
             <span className="toggle-title">Corridor Weather Heatmap (0–48h)</span>
           </label>
 

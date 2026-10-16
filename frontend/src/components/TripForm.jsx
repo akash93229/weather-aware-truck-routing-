@@ -16,13 +16,7 @@ function getDefaultDepartureLocal() {
   return `${yyyy}-${MM}-${dd}T${hh}:${mm}`;
 }
 
-// User timezone display derived once at module load
-const USER_TIMEZONE = typeof Intl !== 'undefined' ? (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC') : 'UTC';
-const TZ_OFFSET_MINUTES = typeof Date !== 'undefined' ? -new Date().getTimezoneOffset() : 0;
-const TZ_OFFSET_HOURS = Math.floor(Math.abs(TZ_OFFSET_MINUTES) / 60);
-const TZ_OFFSET_MINS = Math.abs(TZ_OFFSET_MINUTES) % 60;
-const TZ_OFFSET_SIGN = TZ_OFFSET_MINUTES >= 0 ? '+' : '-';
-const TZ_DISPLAY = `${USER_TIMEZONE} (UTC${TZ_OFFSET_SIGN}${String(TZ_OFFSET_HOURS).padStart(2, '0')}:${String(TZ_OFFSET_MINS).padStart(2, '0')})`;
+const TZ_DISPLAY = typeof Intl !== 'undefined' ? (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC') : 'UTC';
 
 export default function TripForm({ onSubmit, isLoading, onFormChange, onClearRoutes }) {
   // Autocomplete state for Origin
