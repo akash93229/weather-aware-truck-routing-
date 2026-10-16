@@ -2,6 +2,7 @@
 
 import logging
 import requests
+import time
 from urllib.parse import quote
 from typing import List, Dict, Any, Optional
 from django.conf import settings
@@ -36,8 +37,11 @@ def geocode_address(query: str, api_key: Optional[str] = None) -> List[Dict[str,
     url = f'https://api.tomtom.com/search/2/geocode/{quote(clean_query)}.json'
     params = {'key': key, 'limit': 5}
 
+    t0 = time.perf_counter()
     try:
         response = requests.get(url, params=params, timeout=TIMEOUT_SECONDS)
+        elapsed = time.perf_counter() - t0
+        logger.info("[TIMING] geocode query='%s' took %.3fs (status=%s)", clean_query[:20], elapsed, response.status_code)
         if response.status_code == 200:
             data = response.json()
             results: List[Dict[str, Any]] = []

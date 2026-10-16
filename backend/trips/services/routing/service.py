@@ -2,6 +2,8 @@
 
 import math
 import logging
+import time
+import concurrent.futures
 from typing import List, Tuple, Optional, Dict, Any
 from django.core.cache import cache
 
@@ -123,6 +125,7 @@ def get_routes(
 
     routes: List[Route] = []
 
+    t_init = time.perf_counter()
     try:
         routes = active_provider.calculate_routes(
             origin=origin,
@@ -143,10 +146,14 @@ def get_routes(
         except Exception as osrm_exc:
             raise RoutingUnavailable(f'All routing providers failed. {exc} / {osrm_exc}') from osrm_exc
 
+    init_duration = time.perf_counter() - t_init
     distinct_routes = filter_distinct_routes(routes)
+    logger.info('[TIMING] initial_routing took %.3fs (found %d routes, %d distinct)', init_duration, len(routes), len(distinct_routes))
 
     # If fewer than 3 distinct routes remain, generate via-points sideways
     notes = []
+    t_via = time.perf_counter()
+    extra_calls = 0
     if len(distinct_routes) < 3 and distinct_routes:
         main_route = distinct_routes[0]
         cum_dist = cumulative_distances(main_route.points)
@@ -154,37 +161,44 @@ def get_routes(
 
         # Offsets to try: +30, -30, +45, -45 miles (capped at 4 extra calls)
         offsets = [30.0, -30.0, 45.0, -45.0]
-        extra_calls = 0
 
-        for offset in offsets:
-            if len(distinct_routes) >= 3 or extra_calls >= 4:
-                break
-            extra_calls += 1
-            via = calculate_sideways_offset(mid_pt, origin, destination, offset)
-
+        def _fetch_via_route(offset_val: float) -> Tuple[float, List[Route]]:
+            via_pt = calculate_sideways_offset(mid_pt, origin, destination, offset_val)
             try:
-                via_routes = active_provider.calculate_routes(
+                v_routes = active_provider.calculate_routes(
                     origin=origin,
                     destination=destination,
                     load_weight_lb=load_weight_lb,
-                    via_points=[via],
+                    via_points=[via_pt],
                 )
+                return offset_val, v_routes
             except Exception:
                 try:
-                    via_routes = fallback_provider.calculate_routes(
+                    v_routes = fallback_provider.calculate_routes(
                         origin=origin,
                         destination=destination,
                         load_weight_lb=load_weight_lb,
-                        via_points=[via],
+                        via_points=[via_pt],
                     )
+                    return offset_val, v_routes
                 except Exception:
-                    continue
+                    return offset_val, []
 
-            for vr in via_routes:
-                if not any(are_routes_duplicate(vr, existing) for existing in distinct_routes):
-                    distinct_routes.append(vr)
-                    if len(distinct_routes) >= 3:
-                        break
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(offsets)) as executor:
+            futures = [executor.submit(_fetch_via_route, off) for off in offsets]
+            for future in futures:
+                off_val, via_routes = future.result()
+                extra_calls += 1
+                for vr in via_routes:
+                    if not any(are_routes_duplicate(vr, existing) for existing in distinct_routes):
+                        distinct_routes.append(vr)
+                        if len(distinct_routes) >= 3:
+                            break
+                if len(distinct_routes) >= 3:
+                    break
+
+    via_duration = time.perf_counter() - t_via
+    logger.info('[TIMING] via_points_stage took %.3fs (made %d calls, total distinct: %d)', via_duration, extra_calls, len(distinct_routes))
 
     if len(distinct_routes) < 3:
         notes.append(f'Only {len(distinct_routes)} distinct sensible route(s) found between these locations.')

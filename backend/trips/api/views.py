@@ -2,10 +2,12 @@
 
 import math
 import logging
+import time
 from datetime import timedelta
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from django.core.cache import cache
 
 from trips.api.serializers import RouteRequestSerializer, TripAnalyzeSerializer
 from trips.services.risk import (
@@ -133,6 +135,7 @@ def analyze_trip_view(request, routing_provider=None, weather_provider=None):
     POST /api/trips/analyze
     Analyzes up to 3 distinct truck routes with time-aware weather risk scoring.
     """
+    t_req_start = time.perf_counter()
     serializer = TripAnalyzeSerializer(data=request.data)
     if not serializer.is_valid():
         first_field = next(iter(serializer.errors))
@@ -160,6 +163,20 @@ def analyze_trip_view(request, routing_provider=None, weather_provider=None):
     load_lb = data['load_weight_lb']
     interval_mi = data['interval_miles']
     scenario = data.get('scenario', 'live')
+
+    # Check analysis cache for identical request
+    analysis_cache_key = None
+    if routing_provider is None and weather_provider is None:
+        analysis_cache_key = (
+            f'trip_analysis:{round(orig["lat"], 3):.3f}:{round(orig["lng"], 3):.3f}:'
+            f'{round(dest["lat"], 3):.3f}:{round(dest["lng"], 3):.3f}:'
+            f'{dep_time.isoformat()}:{int(load_lb)}:{interval_mi}:{scenario}:{data.get("constant_wind_mph")}'
+        )
+        cached_analysis = cache.get(analysis_cache_key)
+        if cached_analysis is not None:
+            total_duration = time.perf_counter() - t_req_start
+            logger.info('[TIMING] total_analyze_request (cached) took %.3fs', total_duration)
+            return Response(cached_analysis)
 
     # Step 1: Calculate distinct routes
     try:
@@ -230,6 +247,7 @@ def analyze_trip_view(request, routing_provider=None, weather_provider=None):
         for r in computed_routes
     ]
 
+    t_analysis = time.perf_counter()
     try:
         analysis_result = analyze_routes(
             routes=route_input_dicts,
@@ -248,8 +266,11 @@ def analyze_trip_view(request, routing_provider=None, weather_provider=None):
             {'error': {'code': 'analysis_error', 'message': f'Analysis error: {exc}'}},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+    analysis_duration = time.perf_counter() - t_analysis
+    logger.info('[TIMING] analysis_stage took %.3fs', analysis_duration)
 
     # Step 4: Format standardized output response
+    t_ser = time.perf_counter()
     recommended_id = analysis_result.get('recommended_route_id')
     explanation = analysis_result.get('explanation', '')
 
@@ -307,17 +328,26 @@ def analyze_trip_view(request, routing_provider=None, weather_provider=None):
             'checkpoints': formatted_cps,
         })
 
+    serialization_duration = time.perf_counter() - t_ser
+    logger.info('[TIMING] serialization_stage took %.3fs', serialization_duration)
+
     all_warnings = analysis_result.get('warnings', []) + routes_result.get('notes', [])
     provider_used = routes_result.get('provider_used', 'unknown')
 
-    logger.info('Trip analyzed successfully using routing provider: %s', provider_used)
+    total_duration = time.perf_counter() - t_req_start
+    logger.info('[TIMING] total_analyze_request took %.3fs (routing_provider=%s)', total_duration, provider_used)
 
-    return Response({
+    response_payload = {
         'recommendation': recommendation_payload,
         'warnings': all_warnings,
         'routes': formatted_routes,
         'provider_used': provider_used,
-    })
+    }
+
+    if analysis_cache_key is not None:
+        cache.set(analysis_cache_key, response_payload, timeout=900)  # 15 minutes TTL
+
+    return Response(response_payload)
 
 
 @api_view(['POST'])

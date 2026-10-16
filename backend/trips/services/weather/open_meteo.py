@@ -3,6 +3,7 @@
 import logging
 import requests
 import time
+import concurrent.futures
 from datetime import datetime, timezone
 from typing import List, Tuple, Dict
 from django.core.cache import cache
@@ -55,11 +56,20 @@ class OpenMeteoProvider(WeatherProvider):
         for attempt in range(2):  # initial attempt + 1 retry
             if attempt > 0:
                 time.sleep(1.0)
+            t0 = time.perf_counter()
             try:
                 response = requests.get(
                     self.base_url,
                     params=params,
                     timeout=REQUEST_TIMEOUT_SECONDS,
+                )
+                elapsed = time.perf_counter() - t0
+                logger.info(
+                    '[TIMING] open_meteo_chunk (%d locations, attempt=%d) took %.3fs (status=%s)',
+                    len(chunk_points),
+                    attempt + 1,
+                    elapsed,
+                    response.status_code,
                 )
                 if response.status_code == 200:
                     data = response.json()
@@ -127,10 +137,26 @@ class OpenMeteoProvider(WeatherProvider):
                 unique_missing.append(pt)
 
         # Process in chunks of up to 50 locations
-        for i in range(0, len(unique_missing), CHUNK_SIZE):
-            chunk = unique_missing[i:i + CHUNK_SIZE]
-            chunk_data = self._fetch_chunk(chunk, start_date_str, end_date_str)
+        t_weather = time.perf_counter()
+        chunks = [unique_missing[i:i + CHUNK_SIZE] for i in range(0, len(unique_missing), CHUNK_SIZE)]
 
+        chunk_results: List[Tuple[List[Tuple[float, float]], List[dict]]] = []
+        if len(chunks) <= 1:
+            for chunk in chunks:
+                chunk_data = self._fetch_chunk(chunk, start_date_str, end_date_str)
+                chunk_results.append((chunk, chunk_data))
+        else:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(4, len(chunks))) as executor:
+                future_to_chunk = {
+                    executor.submit(self._fetch_chunk, chunk, start_date_str, end_date_str): chunk
+                    for chunk in chunks
+                }
+                for future in concurrent.futures.as_completed(future_to_chunk):
+                    chunk = future_to_chunk[future]
+                    chunk_data = future.result()
+                    chunk_results.append((chunk, chunk_data))
+
+        for chunk, chunk_data in chunk_results:
             for pt, loc_data in zip(chunk, chunk_data):
                 hourly = loc_data.get('hourly', {})
                 times = hourly.get('time', [])
@@ -166,5 +192,15 @@ class OpenMeteoProvider(WeatherProvider):
                 for req_pt in points:
                     if round(req_pt[0], 2) == round(pt[0], 2) and round(req_pt[1], 2) == round(pt[1], 2):
                         results[req_pt] = location_weather
+
+        weather_duration = time.perf_counter() - t_weather
+        num_chunks = (len(unique_missing) + CHUNK_SIZE - 1) // CHUNK_SIZE
+        logger.info(
+            '[TIMING] weather_total (%d points requested, %d unique missing, %d chunks) took %.3fs',
+            len(points),
+            len(unique_missing),
+            num_chunks,
+            weather_duration,
+        )
 
         return results

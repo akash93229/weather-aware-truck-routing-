@@ -2,6 +2,7 @@
 
 import logging
 import requests
+import time
 from typing import List, Tuple, Optional
 
 from trips.services.routing.base import (
@@ -54,11 +55,20 @@ class OSRMRoutingProvider(RoutingProvider):
 
         last_error = None
         for attempt in range(2):
+            t0 = time.perf_counter()
             try:
                 response = requests.get(
                     endpoint,
                     params=params,
                     timeout=TIMEOUT_SECONDS,
+                )
+                elapsed = time.perf_counter() - t0
+                logger.info(
+                    '[TIMING] osrm_call (attempt=%d, via_points=%s) took %.3fs (status=%s)',
+                    attempt + 1,
+                    bool(via_points),
+                    elapsed,
+                    response.status_code,
                 )
                 if response.status_code == 200:
                     data = response.json()

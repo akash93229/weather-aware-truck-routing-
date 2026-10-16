@@ -2,6 +2,7 @@
 
 import logging
 import requests
+import time
 from typing import List, Tuple, Optional
 from django.conf import settings
 
@@ -67,11 +68,20 @@ class TomTomRoutingProvider(RoutingProvider):
 
         last_error = None
         for attempt in range(2):  # initial attempt + 1 retry
+            t0 = time.perf_counter()
             try:
                 response = requests.get(
                     endpoint,
                     params=params,
                     timeout=TIMEOUT_SECONDS,
+                )
+                elapsed = time.perf_counter() - t0
+                logger.info(
+                    '[TIMING] tomtom_call (attempt=%d, via_points=%s) took %.3fs (status=%s)',
+                    attempt + 1,
+                    bool(via_points),
+                    elapsed,
+                    response.status_code,
                 )
                 if response.status_code == 200:
                     data = response.json()
@@ -119,6 +129,8 @@ class TomTomRoutingProvider(RoutingProvider):
                     raise NoRouteFound(f'Route calculation rejected by TomTom: {err_msg}')
                 elif response.status_code in (401, 403):
                     raise RoutingUnavailable(f'TomTom authentication failed (HTTP {response.status_code}).')
+                elif response.status_code == 429:
+                    raise RoutingUnavailable('TomTom rate limit reached (HTTP 429).')
                 else:
                     last_error = f'HTTP {response.status_code}: {response.text[:150]}'
 
