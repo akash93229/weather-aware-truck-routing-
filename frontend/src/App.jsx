@@ -10,6 +10,33 @@ import './App.css';
 
 const RiskProfileChart = lazy(() => import('./components/RiskProfileChart'));
 
+function formatDepartureSummary(isoStr) {
+  if (!isoStr) return '';
+  try {
+    const d = new Date(isoStr);
+    const day = d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    return `${day} ${time}`;
+  } catch {
+    return isoStr;
+  }
+}
+
+function computeResultsMeta(params) {
+  if (!params) return '';
+  const scenarioLabels = {
+    live: 'Live forecast',
+    storm: 'Storm demo',
+    calm: 'Calm demo',
+    constant_wind: 'Constant wind demo',
+  };
+  const sc = scenarioLabels[params.scenario] || params.scenario || 'Live forecast';
+  const wt = `${Number(params.load_weight_lb || 0).toLocaleString()} lb`;
+  const iv = `${params.interval_miles || 25} mi`;
+  const dep = params.departure_time ? `departs ${formatDepartureSummary(params.departure_time)}` : '';
+  return `${sc}, ${wt}, ${iv}${dep ? `, ${dep}` : ''}`;
+}
+
 export default function App() {
   const [backendStatus, setBackendStatus] = useState('checking'); // 'checking' | 'ok' | 'unavailable'
   const [backendError, setBackendError] = useState('');
@@ -21,6 +48,7 @@ export default function App() {
   const [tripResults, setTripResults] = useState(null); // { routes, recommendation, warnings }
   const [selectedRouteId, setSelectedRouteId] = useState(null);
   const [lastTripParams, setLastTripParams] = useState(null);
+  const [isInputsChanged, setIsInputsChanged] = useState(false);
 
   // UI View Modes & Panel Collapse state
   const [showHero, setShowHero] = useState(true);
@@ -78,6 +106,7 @@ export default function App() {
     setAnalysisError('');
     setAnalysisProgressHint('');
     setLastTripParams(formData);
+    setIsInputsChanged(false);
 
     // Dismiss hero automatically on search and focus routes panel
     setShowHero(false);
@@ -105,6 +134,37 @@ export default function App() {
       setAnalysisProgressHint('');
     }
   };
+
+  const handleFormChange = useCallback((formValues) => {
+    if (!lastTripParams) {
+      setIsInputsChanged(false);
+      return;
+    }
+    const scenarioChanged = formValues.scenario !== lastTripParams.scenario;
+    const weightChanged = Number(formValues.loadWeight) !== Number(lastTripParams.load_weight_lb);
+    const intervalChanged = String(formValues.intervalMiles) !== String(lastTripParams.interval_miles) &&
+      formValues.intervalMiles !== 'auto';
+    const departureIso = formValues.departureTime ? new Date(formValues.departureTime).toISOString() : '';
+    const departureChanged = departureIso && Math.abs(new Date(departureIso).getTime() - new Date(lastTripParams.departure_time).getTime()) > 60000;
+    const originChanged = formValues.originCoord ? (
+      Math.abs(formValues.originCoord.lat - (lastTripParams.origin?.lat || 0)) > 0.001 ||
+      Math.abs(formValues.originCoord.lng - (lastTripParams.origin?.lng || 0)) > 0.001
+    ) : true;
+    const destChanged = formValues.destCoord ? (
+      Math.abs(formValues.destCoord.lat - (lastTripParams.destination?.lat || 0)) > 0.001 ||
+      Math.abs(formValues.destCoord.lng - (lastTripParams.destination?.lng || 0)) > 0.001
+    ) : true;
+
+    const hasChanged = scenarioChanged || weightChanged || intervalChanged || departureChanged || originChanged || destChanged;
+    setIsInputsChanged(hasChanged);
+  }, [lastTripParams]);
+
+  const handleClearRoutes = useCallback(() => {
+    setTripResults(null);
+    setSelectedRouteId(null);
+    setLastTripParams(null);
+    setIsInputsChanged(false);
+  }, []);
 
   const handleSelectRoute = useCallback((routeId) => {
     setSelectedRouteId(routeId);
@@ -221,7 +281,12 @@ export default function App() {
 
           {!isLeftPanelCollapsed && (
             <div className="panel-content-scroll">
-              <TripForm onSubmit={handleTripSubmit} isLoading={isLoadingAnalysis} />
+              <TripForm
+                onSubmit={handleTripSubmit}
+                isLoading={isLoadingAnalysis}
+                onFormChange={handleFormChange}
+                onClearRoutes={handleClearRoutes}
+              />
 
               {/* Wakeup Progress Hint */}
               {analysisProgressHint && (
@@ -286,7 +351,17 @@ export default function App() {
 
               {/* Loaded Route Cards & Recommendation */}
               {tripResults && !isLoadingAnalysis && (
-                <>
+                <div className={`results-wrapper ${isInputsChanged ? 'is-stale' : ''}`} id="results-wrapper">
+                  {isInputsChanged && (
+                    <div className="inputs-changed-banner" id="inputs-changed-notice">
+                      <span className="notice-icon">⚠</span>
+                      <span>Inputs changed. Press Analyze to update.</span>
+                    </div>
+                  )}
+                  <div className="results-computed-for" id="results-computed-for">
+                    <span>Results for: </span>
+                    <span className="computed-tag">{computeResultsMeta(lastTripParams)}</span>
+                  </div>
                   <RouteCards
                     routes={tripResults.routes}
                     recommendation={tripResults.recommendation}
@@ -302,7 +377,7 @@ export default function App() {
                       }
                     />
                   </Suspense>
-                </>
+                </div>
               )}
 
               {/* Empty State Prompt */}

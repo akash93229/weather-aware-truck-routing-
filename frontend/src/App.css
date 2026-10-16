@@ -999,6 +999,45 @@ select:focus-visible {
    Route Cards & Recommendations (Step 6 Glowing Recommended Card)
    ========================================================================== */
 
+.results-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: opacity var(--transition-fast), filter var(--transition-fast);
+}
+
+.results-wrapper.is-stale {
+  opacity: 0.52;
+  filter: grayscale(25%);
+}
+
+.inputs-changed-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.6rem 0.85rem;
+  background: rgba(245, 158, 11, 0.16);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  border-radius: var(--radius-md);
+  color: #fbbf24;
+  font-size: 0.78rem;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
+}
+
+.results-computed-for {
+  font-size: 0.73rem;
+  color: var(--text-secondary);
+  padding: 0.2rem 0.25rem 0.15rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  line-height: 1.4;
+}
+
+.results-computed-for .computed-tag {
+  color: var(--accent-cyan);
+  font-weight: 600;
+}
+
 .route-cards-container {
   display: flex;
   flex-direction: column;
