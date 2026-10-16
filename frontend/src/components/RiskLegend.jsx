@@ -6,22 +6,44 @@ const RISK_PALETTE = [
   { level: 4, label: 'No Travel', color: '#ef4444', desc: '>=55 mph wind, >1.00 in/hr rain' },
 ];
 
-export { RISK_PALETTE };
+const ROUTE_LEGEND = [
+  { label: 'Fastest', color: '#38bdf8' },
+  { label: 'Alternative 1', color: '#a855f7' },
+  { label: 'Alternative 2', color: '#f97316' },
+];
+
+export { RISK_PALETTE, ROUTE_LEGEND };
 
 export default function RiskLegend() {
   return (
     <div className="risk-legend" id="risk-legend">
-      <span className="legend-title">Risk Scale</span>
-      <div className="legend-items">
-        {RISK_PALETTE.map((item) => (
-          <div key={item.level} className="legend-item" title={item.desc}>
-            <span
-              className="legend-dot"
-              style={{ backgroundColor: item.color }}
-            />
-            <span className="legend-label">{item.label}</span>
-          </div>
-        ))}
+      <div className="legend-group">
+        <span className="legend-title">Routes</span>
+        <div className="legend-items">
+          {ROUTE_LEGEND.map((r) => (
+            <div key={r.label} className="legend-item" title={`${r.label} route line`}>
+              <span className="legend-route-line" style={{ backgroundColor: r.color }} />
+              <span className="legend-label">{r.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="legend-group-divider" />
+
+      <div className="legend-group">
+        <span className="legend-title">Risk Scale</span>
+        <div className="legend-items">
+          {RISK_PALETTE.map((item) => (
+            <div key={item.level} className="legend-item" title={item.desc}>
+              <span
+                className="legend-dot"
+                style={{ backgroundColor: item.color }}
+              />
+              <span className="legend-label">{item.label}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
