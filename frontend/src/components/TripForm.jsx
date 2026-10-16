@@ -197,6 +197,15 @@ export default function TripForm({ onSubmit, isLoading }) {
     // Convert local datetime to ISO-8601 string in UTC for the backend
     const departureIso = departureDate.toISOString();
 
+    let computedInterval = Number(intervalMiles);
+    if (intervalMiles === 'auto' || Number.isNaN(computedInterval)) {
+      // Rough distance estimate
+      const dlat = (destCoord.lat - originCoord.lat) * 69.0;
+      const dlng = (destCoord.lng - originCoord.lng) * 53.0;
+      const straightMiles = Math.sqrt(dlat * dlat + dlng * dlng);
+      computedInterval = straightMiles < 150 ? 10 : straightMiles < 600 ? 25 : 50;
+    }
+
     onSubmit({
       origin: {
         lat: originCoord.lat,
@@ -210,7 +219,7 @@ export default function TripForm({ onSubmit, isLoading }) {
       },
       departure_time: departureIso,
       load_weight_lb: weight,
-      interval_miles: Number(intervalMiles),
+      interval_miles: computedInterval,
       scenario,
     });
   };
@@ -366,8 +375,12 @@ export default function TripForm({ onSubmit, isLoading }) {
           <select
             id="interval-select"
             value={intervalMiles}
-            onChange={(e) => setIntervalMiles(Number(e.target.value))}
+            onChange={(e) => {
+              const val = e.target.value;
+              setIntervalMiles(val === 'auto' ? 'auto' : Number(val));
+            }}
           >
+            <option value="auto">Auto (Smart adaptation based on trip distance)</option>
             <option value={10}>Every 10 miles (High resolution)</option>
             <option value={25}>Every 25 miles (Recommended)</option>
             <option value={50}>Every 50 miles (Fast overview)</option>

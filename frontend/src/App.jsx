@@ -6,6 +6,7 @@ import Hero from './components/Hero';
 import TripForm from './components/TripForm';
 import MapView from './components/MapView';
 import RouteCards from './components/RouteCards';
+import RiskProfileChart from './components/RiskProfileChart';
 import './App.css';
 
 export default function App() {
@@ -271,12 +272,21 @@ export default function App() {
 
               {/* Loaded Route Cards & Recommendation */}
               {tripResults && !isLoadingAnalysis && (
-                <RouteCards
-                  routes={tripResults.routes}
-                  recommendation={tripResults.recommendation}
-                  selectedRouteId={selectedRouteId}
-                  onSelectRoute={handleSelectRoute}
-                />
+                <>
+                  <RouteCards
+                    routes={tripResults.routes}
+                    recommendation={tripResults.recommendation}
+                    selectedRouteId={selectedRouteId}
+                    onSelectRoute={handleSelectRoute}
+                  />
+                  <RiskProfileChart
+                    route={
+                      tripResults.routes?.find((r) => r.id === selectedRouteId) ||
+                      tripResults.routes?.[0] ||
+                      null
+                    }
+                  />
+                </>
               )}
 
               {/* Empty State Prompt */}
