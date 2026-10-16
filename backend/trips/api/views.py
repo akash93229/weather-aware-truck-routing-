@@ -193,8 +193,19 @@ def analyze_trip_view(request, routing_provider=None, weather_provider=None):
         )
 
     # Step 2: Determine weather provider (live vs demo scenario)
+    const_wind = data.get('constant_wind_mph')
     if weather_provider is not None:
         active_weather_provider = weather_provider
+    elif const_wind is not None or scenario == 'constant_wind':
+        wind_speed = float(const_wind if const_wind is not None else 0.0)
+        active_weather_provider = FixtureWeatherProvider(
+            default_weather=Weather(
+                wind_mph=wind_speed,
+                gust_mph=wind_speed,
+                rain_in_hr=0.0,
+                snow_in_hr=0.0,
+            )
+        )
     elif scenario == 'calm':
         active_weather_provider = FixtureWeatherProvider.calm()
     elif scenario == 'storm':

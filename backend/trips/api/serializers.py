@@ -68,9 +68,16 @@ class TripAnalyzeSerializer(serializers.Serializer):
     load_weight_lb = serializers.FloatField(min_value=1.0, max_value=80000.0)
     interval_miles = serializers.ChoiceField(choices=[10, 25, 50], default=25)
     scenario = serializers.ChoiceField(
-        choices=['live', 'calm', 'storm', 'all_levels'],
+        choices=['live', 'calm', 'storm', 'all_levels', 'constant_wind'],
         default='live',
         required=False,
+    )
+    constant_wind_mph = serializers.FloatField(
+        required=False,
+        min_value=0.0,
+        max_value=200.0,
+        allow_null=True,
+        default=None,
     )
 
     def validate_departure_time(self, value):
