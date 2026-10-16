@@ -44,6 +44,60 @@ function getRiskBadgeColor(level) {
   }
 }
 
+function getMapPadding() {
+  const width = typeof window !== 'undefined' ? window.innerWidth : 1440;
+  const height = typeof window !== 'undefined' ? window.innerHeight : 900;
+
+  // Phone (< 768px): bottom sheet covers bottom portion of screen
+  if (width < 768) {
+    const bottomSheetHeight = Math.min(Math.round(height * 0.45), 360);
+    return {
+      top: 60,
+      bottom: bottomSheetHeight + 20,
+      left: 20,
+      right: 20,
+    };
+  }
+
+  // Tablet (768px - 1024px): left panel ~300px, right panel ~320px
+  if (width <= 1024) {
+    return {
+      top: 70,
+      bottom: 100,
+      left: 310,
+      right: 330,
+    };
+  }
+
+  // Small desktop (1024px - 1366px): left panel 350px, right panel 380px
+  if (width <= 1366) {
+    return {
+      top: 75,
+      bottom: 110,
+      left: 370,
+      right: 400,
+    };
+  }
+
+  // Desktop (1440px):
+  if (width <= 1600) {
+    return {
+      top: 80,
+      bottom: 120,
+      left: 380,
+      right: 420,
+    };
+  }
+
+  // Large desktop (1920px+):
+  return {
+    top: 90,
+    bottom: 130,
+    left: 420,
+    right: 450,
+  };
+}
+
 export default function MapView({
   routes = [],
   selectedRouteId,
@@ -58,6 +112,7 @@ export default function MapView({
   onToggle3D,
 }) {
   const mapRef = useRef(null);
+  const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [cursor, setCursor] = useState('auto');
   const [activePopup, setActivePopup] = useState(null);
 
@@ -65,43 +120,73 @@ export default function MapView({
   const heatmapFeaturesRef = useRef([]);
   const rafIdRef = useRef(null);
 
-  // Fit bounds and pitch camera when routes change
-  useEffect(() => {
+  // Fit bounds on ALL 3 routes with padding for panels and bottom bar
+  const fitRoutesToBounds = useCallback(() => {
     if (!routes || routes.length === 0 || !mapRef.current) return;
 
     let minLng = 180, maxLng = -180, minLat = 90, maxLat = -90;
     let pointCount = 0;
 
     routes.forEach((r) => {
-      if (r.geometry && r.geometry.length) {
-        r.geometry.forEach(([lng, lat]) => {
-          if (lng < minLng) minLng = lng;
-          if (lng > maxLng) maxLng = lng;
-          if (lat < minLat) minLat = lat;
-          if (lat > maxLat) maxLat = lat;
-          pointCount++;
+      // Coordinates can be directly in r.geometry (array of [lng, lat]) or r.geometry.coordinates
+      const coords = Array.isArray(r.geometry)
+        ? r.geometry
+        : (r.geometry && Array.isArray(r.geometry.coordinates) ? r.geometry.coordinates : []);
+
+      coords.forEach((coord) => {
+        if (Array.isArray(coord) && coord.length >= 2) {
+          const [lng, lat] = coord;
+          if (typeof lng === 'number' && typeof lat === 'number') {
+            if (lng < minLng) minLng = lng;
+            if (lng > maxLng) maxLng = lng;
+            if (lat < minLat) minLat = lat;
+            if (lat > maxLat) maxLat = lat;
+            pointCount++;
+          }
+        }
+      });
+
+      // Also incorporate checkpoints if any
+      if (r.checkpoints && Array.isArray(r.checkpoints)) {
+        r.checkpoints.forEach((cp) => {
+          if (typeof cp.lng === 'number' && typeof cp.lat === 'number') {
+            if (cp.lng < minLng) minLng = cp.lng;
+            if (cp.lng > maxLng) maxLng = cp.lng;
+            if (cp.lat < minLat) minLat = cp.lat;
+            if (cp.lat > maxLat) maxLat = cp.lat;
+            pointCount++;
+          }
         });
       }
     });
 
-    if (pointCount > 0 && mapRef.current) {
-      try {
-        const map = mapRef.current.getMap ? mapRef.current.getMap() : mapRef.current;
-        if (map && map.fitBounds) {
-          map.fitBounds(
-            [[minLng, minLat], [maxLng, maxLat]],
-            {
-              padding: { top: 90, bottom: 120, left: 360, right: 400 },
-              pitch: is3D ? 50 : 0,
-              duration: 1200,
-            }
-          );
-        }
-      } catch {
-        // Map may still be loading tiles
+    if (pointCount === 0) return;
+
+    const bounds = [[minLng, minLat], [maxLng, maxLat]];
+    const padding = getMapPadding();
+
+    try {
+      const map = mapRef.current.getMap ? mapRef.current.getMap() : mapRef.current;
+      if (map && map.fitBounds) {
+        map.fitBounds(bounds, {
+          padding,
+          pitch: is3D ? 45 : 0,
+          duration: 1200,
+          maxZoom: 11,
+        });
       }
+    } catch (err) {
+      console.warn('fitBounds error:', err);
     }
   }, [routes, is3D]);
+
+  // Trigger fit bounds on routes change, 3D toggle, or map load
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fitRoutesToBounds();
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [fitRoutesToBounds, isMapLoaded]);
 
   // Smooth pitch transition when toggling 2D/3D mode
   useEffect(() => {
@@ -308,6 +393,7 @@ export default function MapView({
           onMouseEnter={onMouseEnter}
           onMouseLeave={onMouseLeave}
           attributionControl={false}
+          onLoad={() => setIsMapLoaded(true)}
         >
           <div className="map-custom-controls">
             <button
