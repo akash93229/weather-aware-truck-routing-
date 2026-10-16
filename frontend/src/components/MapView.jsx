@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
-import Map, { Source, Layer, Popup, NavigationControl } from 'react-map-gl/maplibre';
+import Map, { Source, Layer, Popup, NavigationControl, AttributionControl } from 'react-map-gl/maplibre';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibreglWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
@@ -395,6 +395,11 @@ export default function MapView({
           attributionControl={false}
           onLoad={() => setIsMapLoaded(true)}
         >
+          <AttributionControl
+            compact={true}
+            position="top-right"
+            customAttribution="Open-Meteo | © OpenStreetMap contributors | CARTO | TomTom"
+          />
           <div className="map-custom-controls">
             <button
               type="button"
@@ -616,6 +621,16 @@ export default function MapView({
         </Map>
 
         <RiskLegend />
+
+        <div className="map-attribution-line" id="map-attribution-line">
+          <span>© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a></span>
+          <span className="sep">•</span>
+          <span><a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a></span>
+          <span className="sep">•</span>
+          <span>Weather: <a href="https://open-meteo.com" target="_blank" rel="noreferrer">Open-Meteo</a></span>
+          <span className="sep">•</span>
+          <span>Routing: <a href="https://developer.tomtom.com" target="_blank" rel="noreferrer">TomTom</a></span>
+        </div>
       </div>
     </div>
   );
