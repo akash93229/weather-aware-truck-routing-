@@ -2,6 +2,7 @@
 
 import logging
 import requests
+import time
 from datetime import datetime, timezone
 from typing import List, Tuple, Dict
 from django.core.cache import cache
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 CHUNK_SIZE = 50
 CACHE_TTL_SECONDS = 1800  # 30 minutes
-REQUEST_TIMEOUT_SECONDS = 8
+REQUEST_TIMEOUT_SECONDS = 20
 
 
 def make_cache_key(lat: float, lng: float, start_date_str: str, end_date_str: str) -> str:
@@ -52,6 +53,8 @@ class OpenMeteoProvider(WeatherProvider):
 
         last_error = None
         for attempt in range(2):  # initial attempt + 1 retry
+            if attempt > 0:
+                time.sleep(1.0)
             try:
                 response = requests.get(
                     self.base_url,
@@ -69,7 +72,7 @@ class OpenMeteoProvider(WeatherProvider):
             except requests.exceptions.RequestException as exc:
                 last_error = str(exc)
 
-        logger.error('Open-Meteo failed after 1 retry: %s', last_error)
+        logger.error('Open-Meteo failed after retries: %s', last_error)
         raise WeatherUnavailable(f'Open-Meteo weather service unavailable after retry: {last_error}')
 
     def get_hourly(

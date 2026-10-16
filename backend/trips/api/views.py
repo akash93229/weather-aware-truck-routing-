@@ -1,6 +1,7 @@
 """API views for health, legacy route, geocoding, and trip risk analysis."""
 
 import math
+import logging
 from datetime import timedelta
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -27,6 +28,8 @@ from trips.services.heatmap import generate_heatmap
 from trips.services.weather.open_meteo import OpenMeteoProvider
 from trips.services.weather.fixture import FixtureWeatherProvider
 from trips.services.weather.base import Weather, WeatherUnavailable
+
+logger = logging.getLogger(__name__)
 
 
 def simplify_geometry(points: list, max_points: int = 1000) -> list:
@@ -294,11 +297,15 @@ def analyze_trip_view(request, routing_provider=None, weather_provider=None):
         })
 
     all_warnings = analysis_result.get('warnings', []) + routes_result.get('notes', [])
+    provider_used = routes_result.get('provider_used', 'unknown')
+
+    logger.info('Trip analyzed successfully using routing provider: %s', provider_used)
 
     return Response({
         'recommendation': recommendation_payload,
         'warnings': all_warnings,
         'routes': formatted_routes,
+        'provider_used': provider_used,
     })
 
 

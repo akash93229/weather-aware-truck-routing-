@@ -72,3 +72,32 @@ class TestRoutingProviderOrder:
 
         assert res['provider_used'] == 'osrm_fallback'
         assert not mock_here_cls.called, 'HERE must not be initialized or called'
+
+    def test_two_identical_mocked_requests_give_identical_routes_order_and_labels(self):
+        """Verify that identical mocked routing requests yield identical route IDs, labels, and order."""
+        routes_batch = [
+            Route(id='raw_3', label='Option C', points=[(41.88, -87.63), (35.0, -91.0), (32.78, -96.80)], distance_mi=1150.0, duration_s=60000.0),
+            Route(id='raw_1', label='Option A', points=[(41.88, -87.63), (32.78, -96.80)], distance_mi=970.0, duration_s=50000.0),
+            Route(id='raw_2', label='Option B', points=[(41.88, -87.63), (36.0, -90.0), (32.78, -96.80)], distance_mi=975.0, duration_s=52000.0),
+        ]
+
+        mock_provider_1 = MagicMock()
+        mock_provider_1.calculate_routes.return_value = list(routes_batch)
+
+        cache.clear()
+        res1 = get_routes(origin=(41.88, -87.63), destination=(32.78, -96.80), provider=mock_provider_1)
+
+        mock_provider_2 = MagicMock()
+        mock_provider_2.calculate_routes.return_value = list(routes_batch)
+
+        cache.clear()
+        res2 = get_routes(origin=(41.88, -87.63), destination=(32.78, -96.80), provider=mock_provider_2)
+
+        # Assert identical route IDs
+        assert [r.id for r in res1['routes']] == [r.id for r in res2['routes']] == ['route_1', 'route_2', 'route_3']
+        # Assert identical route labels
+        assert [r.label for r in res1['routes']] == [r.label for r in res2['routes']] == ['Fastest', 'Alternative 1', 'Alternative 2']
+        # Assert identical sorted distances and durations
+        assert [r.distance_mi for r in res1['routes']] == [r.distance_mi for r in res2['routes']] == [970.0, 975.0, 1150.0]
+        assert [r.duration_s for r in res1['routes']] == [r.duration_s for r in res2['routes']] == [50000.0, 52000.0, 60000.0]
+

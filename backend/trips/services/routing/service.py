@@ -189,10 +189,10 @@ def get_routes(
     if len(distinct_routes) < 3:
         notes.append(f'Only {len(distinct_routes)} distinct sensible route(s) found between these locations.')
 
-    # Sort routes by travel duration
-    distinct_routes.sort(key=lambda r: r.duration_s)
+    # Sort routes deterministically by travel duration, then distance, then ID
+    distinct_routes.sort(key=lambda r: (round(r.duration_s, 1), round(r.distance_mi, 2), r.id))
 
-    # Label routes
+    # Label routes deterministically: Fastest, Alternative 1, Alternative 2
     labels = ['Fastest', 'Alternative 1', 'Alternative 2']
     final_routes: List[Route] = []
     for idx, r in enumerate(distinct_routes[:3]):
