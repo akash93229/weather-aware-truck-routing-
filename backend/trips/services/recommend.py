@@ -88,7 +88,7 @@ def generate_recommendation_explanation(
 ) -> str:
     """Generate a clear, human-readable rationale with deltas vs the fastest route."""
     if all_no_travel or not recommended:
-        return 'No route recommended: all available routes exceed safety limits with No Travel conditions.'
+        return 'No safe route at this departure time. No route recommended: all available routes exceed safety limits with No Travel conditions.'
 
     rec_id = recommended['route_id']
     fast_id = fastest['route_id'] if fastest else None

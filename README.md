@@ -1,169 +1,147 @@
-# Weather-Aware Truck Routing
+# Weather-Aware Truck Routing Application
 
-A React + Django web application that helps truck drivers select the safest route balancing weather risk, load weight constraints, and travel time.
+A commercial truck routing and weather hazard intelligence platform built with **React + TypeScript** and **Python + Django REST Framework**. It helps dispatchers and commercial drivers select the safest route balancing real-time weather risk, truck load weight constraints, and travel time.
 
-## 1. Environment Configuration
+---
 
-### Backend (.env)
-Copy the example file and configure environment variables:
-```powershell
-Copy-Item backend\.env.example backend\.env
-```
-Generate and populate a secure Django secret key in `backend\.env`:
-```powershell
-python -c "import secrets; from pathlib import Path; p = Path('backend/.env'); p.write_text(p.read_text().replace('change-me', secrets.token_urlsafe(50)))"
-```
-Ensure your API keys are configured in `backend\.env`:
-- `TOMTOM_API_KEY`: for multi-route commercial truck routing and geocoding
-- `ORS_API_KEY`: for OpenRouteService routing (optional legacy route endpoint)
+## 1. Architecture Overview
 
-### Frontend (.env)
-Copy the frontend environment template:
-```powershell
-Copy-Item frontend\.env.example frontend\.env
-```
+### Frontend Architecture
+- **Framework & Language**: React, TypeScript, Vite
+- **UI Components & Icons**: Material UI (`@mui/material`), Vanilla CSS Glassmorphism design tokens
+- **Data Fetching & State**: TanStack Query (`@tanstack/react-query`) with Axios / Fetch API client
+- **Interactive Mapping**: MapLibre GL JS via `react-map-gl`, free CARTO Dark Matter basemap
+- **Risk Visualization**:
+  - Multi-route GeoJSON line layers with active/recommended highlights
+  - Checkpoint circle layer with color-blind-friendly risk grading (Emerald, Sky Blue, Yellow, Orange, Crimson)
+  - 0-48h corridor heatmap layer with zero-network `requestAnimationFrame` local frame scrubbing
+  - Recharts interactive route hazard elevation and sustained wind profile chart (`RiskProfileChart.tsx`)
 
-## 2. Backend Setup and Run
+### Backend Architecture
+- **Framework**: Python 3.12+, Django 5+, Django REST Framework
+- **API Documentation**: OpenAPI 3.0 specification & Swagger UI generated via `drf-spectacular`
+- **Routing Engine**:
+  - **Primary**: HERE Routing API v8 (`trips/services/routing/here.py`) with commercial truck transport mode, flexible polyline decoding (`flexpolyline`), and 3 route alternatives
+  - **Fallback**: Open Source Routing Machine (`trips/services/routing/osrm.py`) with a calibrated 1.15x duration multiplier for commercial truck travel estimation
+  - **Lateral Corridor Expansion**: Sideways via-point generation (±30, ±45 miles) when fewer than 3 distinct routes are returned
+- **Weather Integration**: Open-Meteo forecast API (`trips/services/weather/open_meteo.py`) with hourly sustained wind (10m), wind gusts, rain rate (in/hr), snow rate (in/hr), coordinate batching, and 30-minute in-memory caching
+- **Testing & Quality**: pytest, pytest-django, Ruff linting (0 errors)
+- **Deployment**: Gunicorn WSGI server, WhiteNoise static asset compression, Render and Vercel deployment configurations
 
-Create a virtual environment, install dependencies, and start the development server:
+---
+
+## 2. Weather Risk Engine & Load Constraints
+
+### Base Weather Risk Thresholds
+The risk level at each checkpoint is calculated on a 0 to 4 scale using lower-bound inclusive, upper-bound exclusive intervals:
+
+| Level | Classification | Sustained Wind (mph) | Rain Rate (in/hr) | Snow Rate (in/hr) |
+| :---: | :--- | :--- | :--- | :--- |
+| **0** | **Low** | `< 25` | `< 0.10` | `< 0.5` |
+| **1** | **Moderate** | `25.0 – 34.99` | `0.10 – 0.24` | `0.5 – 0.99` |
+| **2** | **High** | `35.0 – 44.99` | `0.25 – 0.49` | `1.0 – 1.99` |
+| **3** | **Severe** | `45.0 – 54.99` | `0.50 – 1.00` *(inclusive)* | `2.0 – 3.0` *(inclusive)* |
+| **4** | **No Travel** | `≥ 55.0` | `> 1.00` | `> 3.0` |
+
+### Commercial Load-Dependent Wind Overrides
+Truck load rules can escalate risk, but never decrease risk:
+1. **Wind ≥ 55 mph**: Triggers **No Travel (4)** for all truck load weights.
+2. **Wind 45 – 54.99 mph and Load > 30,000 lbs**: Escalates to **No Travel (4)** due to severe high-profile rollover hazard.
+3. **Wind 35 – 44.99 mph and Load > 40,000 lbs**: Escalates to at least **Severe (3)** due to crosswind instability.
+
+The final checkpoint risk is evaluated as:
+$$\text{Risk}_{\text{checkpoint}} = \max(\text{Wind}_{\text{adjusted}}, \text{Rain}, \text{Snow})$$
+
+---
+
+## 3. Route Recommendation Ranking Engine
+
+Routes are summarized using distance-weighted checkpoint ownership: each checkpoint covers the stretch halfway to its adjacent checkpoints. Routes are ranked using a deterministic tuple comparison:
+
+1. **Unblocked First**: Routes without No-Travel miles rank ahead of blocked routes.
+2. **Fewer Severe Miles**: Routes with fewer Severe weather miles are preferred.
+3. **Fewer High Miles**: Routes with fewer High risk miles are preferred.
+4. **Lower Average Risk**: Mile-weighted average risk score (0 to 4).
+5. **Shorter Travel Duration**: Fastest travel time in seconds.
+
+### Recommendation Output & Explanations:
+- If all generated routes contain No-Travel sections:  
+  **`"No safe route at this departure time."`**
+- Otherwise, a plain-English comparative rationale is returned:  
+  *Example*: `"Alternative 1 avoids 41 miles of Severe weather compared with the fastest route and adds 35 minutes of travel time."`
+
+---
+
+## 4. API Specification & Documentation
+
+When the backend is running, browse the interactive Swagger documentation:
+- **Swagger UI**: `http://localhost:8000/api/docs/`
+- **OpenAPI 3.0 Schema**: `http://localhost:8000/api/schema/`
+
+### Key Endpoints:
+1. `GET /api/health/` — Health check endpoint returning `{"status": "ok"}`.
+2. `GET /api/geocode/?q={address}` — Debounced geocoding search for origin/destination (cached 24h).
+3. `POST /api/trips/analyze/` — Multi-route commercial truck routing and time-aware weather risk evaluation.
+4. `POST /api/heatmap/` — 0 to 48 hour corridor weather risk matrix (49 hourly frames) covering routes and lateral corridor offsets.
+
+---
+
+## 5. Local Setup & Execution
+
+### Prerequisites
+- Python 3.12+
+- Node.js 18+ and npm
+
+### Backend Setup
 ```powershell
 cd backend
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe manage.py check
-.\.venv\Scripts\python.exe manage.py runserver
+Copy-Item .env.example .env
+.\.venv\Scripts\python.exe manage.py migrate
+.\.venv\Scripts\python.exe manage.py collectstatic --noinput
+.\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8000
 ```
 
-## 3. Frontend Setup and Run
-
-Install dependencies and start the Vite development server:
+### Frontend Setup
 ```powershell
 cd frontend
 npm install
+Copy-Item .env.example .env
 npm run dev
 ```
-The application will launch on `http://127.0.0.1:5173/` by default.
+Open [http://localhost:5173/](http://localhost:5173/) in your browser.
 
-### Frontend Features & Architecture
-- **Interactive Map:** Built with MapLibre GL (`react-map-gl/maplibre`) using free key-less CARTO Dark Matter basemap.
-- **Multi-Route Visualization:** Renders 3 distinct commercial truck routes with unique colors; active and recommended routes are dynamically highlighted.
-- **Risk-Colored Checkpoints:** Rendered as a single high-performance GeoJSON circle layer colored using a color-blind friendly palette (Emerald, Sky Blue, Yellow, Orange, Crimson).
-- **Interactive Inspection Popups:** Click any checkpoint on the map to view mile marker, ETA with user timezone, sustained wind, wind gusts, rain rate, snow rate, risk level, primary risk drivers, and load weight escalation rules.
-- **Route Cards & Hazard Breakdown:** Interactive cards showing route distance, driving duration, average risk score, maximum risk level, and a stacked horizontal bar breaking down route mileage at each risk level.
-- **Top Recommendation Banner:** Explicitly shows why a route is recommended or alerts when no route is safe at the requested departure time.
-- **Corridor Weather Heatmap & 0-48h Slider:** Visualizes weather hazards along a 15-20 mile perpendicular corridor grid around all 3 routes. Scrubbing through the 0-48 hour forecast updates the MapLibre heatmap layer locally via `requestAnimationFrame` with zero network overhead.
-- **Address Autocomplete & Demo Scenarios:** Debounced geocoding search for origin and destination, quick "Try example trip (Chicago to Dallas)" preset, and scenario toggle between Live forecasts and Severe Storm simulations.
+---
 
-## 4. API Endpoints and Testing
+## 6. Automated Testing & Verification
 
-### Health Check (GET /api/health/)
-```powershell
-Invoke-RestMethod -Uri "http://localhost:8000/api/health/" -Method Get
-```
-
-### Geocoding (GET /api/geocode/?q=)
-Search for addresses or cities (minimum 3 characters, cached for 24 hours):
-```powershell
-Invoke-RestMethod -Uri "http://localhost:8000/api/geocode/?q=Chicago" -Method Get | ConvertTo-Json
-```
-
-### Trip Weather Risk Analysis (POST /api/trips/analyze/)
-Generates up to 3 distinct commercial truck routes (TomTom with OSRM fallback), queries hourly weather along the trip corridor at each checkpoint ETA, evaluates weather risk + load weight rules, and recommends the safest path:
-```powershell
-$dep = (Get-Date).ToUniversalTime().AddHours(2).ToString("yyyy-MM-ddTHH:mm:ssZ")
-$body = @{
-    origin = @{ lat = 41.8781; lng = -87.6298; label = "Chicago, IL" }
-    destination = @{ lat = 32.7767; lng = -96.7970; label = "Dallas, TX" }
-    departure_time = $dep
-    load_weight_lb = 42000
-    interval_miles = 25
-    scenario = "live" # options: "live", "storm", "calm"
-} | ConvertTo-Json -Depth 5
-
-Invoke-RestMethod -Uri "http://localhost:8000/api/trips/analyze/" -Method Post -Body $body -ContentType "application/json"
-```
-
-### Corridor Weather Heatmap (POST /api/heatmap/)
-Generates a 0-48 hour weather risk matrix across a deduplicated corridor grid along all 3 routes (including 15-20 mile perpendicular offset points). Reuses routes cached by `/api/trips/analyze/` without querying TomTom again:
-```powershell
-$dep = (Get-Date).ToUniversalTime().AddHours(2).ToString("yyyy-MM-ddTHH:mm:ssZ")
-$body = @{
-    origin = @{ lat = 41.8781; lng = -87.6298; label = "Chicago, IL" }
-    destination = @{ lat = 32.7767; lng = -96.7970; label = "Dallas, TX" }
-    departure_time = $dep
-    load_weight_lb = 42000
-    interval_miles = 25
-    scenario = "live" # options: "live", "storm", "calm"
-} | ConvertTo-Json -Depth 5
-
-Invoke-RestMethod -Uri "http://localhost:8000/api/heatmap/" -Method Post -Body $body -ContentType "application/json"
-```
-
-**Heatmap Response Format:**
-```json
-{
-  "start_time": "2026-10-15T18:00:00+00:00",
-  "hours": 49,
-  "points": [
-    {
-      "lat": 41.75,
-      "lng": -87.5,
-      "levels": [0, 0, 0, 1, 2, 1, 0, ...]
-    }
-  ]
-}
-```
-
-
-**Response Format:**
-```json
-{
-  "recommendation": {
-    "route_id": "route_1",
-    "reasons": ["Recommended route (route_1) is the fastest option and safest path with 0.0 Severe miles and 0.00 average risk."]
-  },
-  "warnings": [],
-  "routes": [
-    {
-      "id": "route_1",
-      "label": "Fastest",
-      "distance_mi": 973.14,
-      "duration_s": 51091.0,
-      "geometry": [[-87.62978, 41.8781], "..."],
-      "recommended": true,
-      "summary": {
-        "miles_by_level": { "low": 973.14, "moderate": 0, "high": 0, "severe": 0, "no_travel": 0 },
-        "avg_risk": 0.0,
-        "max_level": 0,
-        "blocked": false
-      },
-      "checkpoints": [ ... ]
-    }
-  ]
-}
-```
-
-### Legacy Single Route (POST /api/route/)
-Calculates a truck route using the OpenRouteService `driving-hgv` profile:
-```powershell
-$body = @{
-  start = @{ lat = 49.41461; lng = 8.681495 }
-  end = @{ lat = 49.487459; lng = 8.466039 }
-} | ConvertTo-Json
-
-Invoke-RestMethod -Uri "http://localhost:8000/api/route/" -Method Post -Body $body -ContentType "application/json"
-```
-
-## 5. Running Tests
-
-Run backend unit and integration tests (all mocked, no real network required):
+### Run Backend Tests (pytest)
 ```powershell
 cd backend
-.\.venv\Scripts\pytest.exe
+.\.venv\Scripts\pytest
 ```
-Run frontend linting and production build verification:
+*Result*: 87 passed tests verifying all weather thresholds, load weight overrides, checkpoint intervals, route rankings, HERE provider decoding, and API responses.
+
+### Run Backend Linting (Ruff)
+```powershell
+cd backend
+.\.venv\Scripts\ruff check .
+```
+*Result*: All checks passed (0 errors).
+
+### Run Frontend Tests & Build
 ```powershell
 cd frontend
-npm run lint
+npm test
 npm run build
 ```
+*Result*: All unit tests pass, and production Vite bundle compiles cleanly with TypeScript.
+
+---
+
+## 7. Deployment Configuration
+
+- **Render Full-Stack Deployment**: Configured via [render.yaml](file:///c:/Users/S%20K/Desktop/Weather/weather-aware-truck-routing-/render.yaml) with web services for Django (Gunicorn + WhiteNoise) and static site for React Vite.
+- **Vercel Frontend Deployment**: Configured via [vercel.json](file:///c:/Users/S%20K/Desktop/Weather/weather-aware-truck-routing-/frontend/vercel.json) with client-side SPA rewrites.
+- **Heroku / Container**: Configured via [backend/Procfile](file:///c:/Users/S%20K/Desktop/Weather/weather-aware-truck-routing-/backend/Procfile).

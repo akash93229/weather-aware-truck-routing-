@@ -32,16 +32,19 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'whitenoise.runserver_nostatic',
     'django.contrib.staticfiles',
     # Third-party apps
     'rest_framework',
     'corsheaders',
+    'drf_spectacular',
     # Local apps
     'trips',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -102,6 +105,8 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -113,18 +118,29 @@ CACHES = {
     }
 }
 
-# Django REST Framework: JSON only
+# Django REST Framework: JSON only + drf-spectacular OpenAPI schema
 REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
     ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+# drf-spectacular configuration
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Weather-Aware Truck Routing API',
+    'DESCRIPTION': 'Commercial truck routing with real-time weather risk analysis, load weight constraints, and 0-48h corridor heatmap forecasting.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
 }
 
 # CORS configuration
 cors_origins_str = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173')
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_str.split(',') if origin.strip()]
 
-# OpenRouteService configuration
+# External Routing APIs configuration
+HERE_API_KEY = os.getenv('HERE_API_KEY', '')
+TOMTOM_API_KEY = os.getenv('TOMTOM_API_KEY', '')
 ORS_API_KEY = os.getenv('ORS_API_KEY', '')
 ORS_BASE_URL = os.getenv('ORS_BASE_URL', 'https://api.heigit.org/openrouteservice')
-TOMTOM_API_KEY = os.getenv('TOMTOM_API_KEY', '')

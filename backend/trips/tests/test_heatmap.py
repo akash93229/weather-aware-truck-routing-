@@ -1,7 +1,6 @@
 """Tests for corridor weather heatmap and 0-48h risk computation."""
 
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock
 import pytest
 from django.core.cache import cache
 from rest_framework.test import APIRequestFactory
@@ -218,7 +217,7 @@ def test_heatmap_endpoint_uses_cached_routes():
     body = {
         'origin': {'lat': 41.8781, 'lng': -87.6298, 'label': 'Chicago'},
         'destination': {'lat': 40.0, 'lng': -89.0, 'label': 'Illinois'},
-        'departure_time': '2026-10-15T18:00:00Z',
+        'departure_time': (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
         'load_weight_lb': 42000,
         'interval_miles': 25,
         'scenario': 'calm',

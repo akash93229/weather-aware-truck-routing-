@@ -1,8 +1,7 @@
 """Tests for analysis pipeline: nearest-hour selection, temporal storm avoidance, horizons, and batching."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
-import pytest
 
 from trips.services.risk import RiskLevel
 from trips.services.weather.base import Weather

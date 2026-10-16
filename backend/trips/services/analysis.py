@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Optional, Tuple
 
 from trips.services.checkpoints import generate_checkpoints
 from trips.services.risk import checkpoint_risk, RiskLevel
-from trips.services.recommend import recommend_best_route, summarize_route_risk
+from trips.services.recommend import recommend_best_route
 from trips.services.weather.base import WeatherProvider, Weather
 from trips.services.weather.open_meteo import OpenMeteoProvider
 

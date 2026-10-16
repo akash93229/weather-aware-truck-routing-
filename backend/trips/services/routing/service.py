@@ -5,8 +5,10 @@ import logging
 from typing import List, Tuple, Optional, Dict, Any
 from django.core.cache import cache
 
+from django.conf import settings
 from trips.services.geo import haversine_distance, cumulative_distances, point_at_distance
-from trips.services.routing.base import Route, RoutingProvider, RoutingUnavailable, NoRouteFound
+from trips.services.routing.base import Route, RoutingProvider, RoutingUnavailable
+from trips.services.routing.here import HERERoutingProvider
 from trips.services.routing.tomtom import TomTomRoutingProvider
 from trips.services.routing.osrm import OSRMRoutingProvider
 
@@ -102,11 +104,24 @@ def get_routes(
     if cached is not None:
         return cached
 
-    active_provider = provider or TomTomRoutingProvider()
+    if provider is not None:
+        active_provider = provider
+        raw_name = getattr(provider, 'name', 'custom')
+        provider_used = raw_name if isinstance(raw_name, str) else 'mock'
+    elif getattr(settings, 'HERE_API_KEY', None):
+        active_provider = HERERoutingProvider()
+        provider_used = 'here'
+    elif getattr(settings, 'TOMTOM_API_KEY', None):
+        active_provider = TomTomRoutingProvider()
+        provider_used = 'tomtom'
+    else:
+        active_provider = OSRMRoutingProvider()
+        provider_used = 'osrm_fallback'
+
+    # OSRM fallback with truck travel duration 1.15x multiplier
     fallback_provider = OSRMRoutingProvider()
 
     routes: List[Route] = []
-    provider_used = 'tomtom'
 
     try:
         routes = active_provider.calculate_routes(
@@ -116,7 +131,7 @@ def get_routes(
             max_alternatives=2,
         )
     except RoutingUnavailable as exc:
-        logger.warning('Primary routing provider unavailable (%s). Falling back to OSRM.', exc)
+        logger.warning('Primary routing provider %s unavailable (%s). Falling back to OSRM (with 1.15x truck duration scale).', provider_used, exc)
         try:
             routes = fallback_provider.calculate_routes(
                 origin=origin,

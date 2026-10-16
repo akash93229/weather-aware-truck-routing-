@@ -9,7 +9,6 @@ from rest_framework.response import Response
 from trips.api.serializers import RouteRequestSerializer, TripAnalyzeSerializer
 from trips.services.risk import (
     RiskLevel,
-    checkpoint_risk,
 )
 from trips.services.ors import (
     OpenRouteServiceClient,

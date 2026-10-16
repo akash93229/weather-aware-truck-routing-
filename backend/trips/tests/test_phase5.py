@@ -7,11 +7,7 @@ from django.core.cache import cache
 
 from trips.services.routing.base import Route, RoutingUnavailable
 from trips.services.routing.tomtom import TomTomRoutingProvider
-from trips.services.routing.osrm import OSRMRoutingProvider
 from trips.services.routing.service import get_routes, are_routes_duplicate, filter_distinct_routes
-from trips.services.geocoding import geocode_address
-from trips.services.weather.base import Weather
-from trips.services.weather.fixture import FixtureWeatherProvider
 
 
 @pytest.fixture(autouse=True)

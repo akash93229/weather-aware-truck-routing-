@@ -1,9 +1,7 @@
 """Tests for multi-criteria route ranking and recommendation logic."""
 
-import pytest
 from trips.services.risk import RiskLevel
 from trips.services.recommend import (
-    summarize_route_risk,
     recommend_best_route,
 )
 
