@@ -110,6 +110,8 @@ export default function MapView({
   onRetryHeatmap,
   is3D = true,
   onToggle3D,
+  isLeftCollapsed = false,
+  isRightCollapsed = false,
 }) {
   const mapRef = useRef(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
@@ -374,6 +376,8 @@ export default function MapView({
         isLoadingHeatmap={isLoadingHeatmap}
         heatmapError={heatmapError}
         onRetryHeatmap={onRetryHeatmap}
+        isLeftCollapsed={isLeftCollapsed}
+        isRightCollapsed={isRightCollapsed}
       />
 
       <div className="map-wrapper" id="map-container">

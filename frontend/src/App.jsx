@@ -14,27 +14,17 @@ function formatDepartureSummary(isoStr) {
   if (!isoStr) return '';
   try {
     const d = new Date(isoStr);
-    const day = d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-    const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-    return `${day} ${time}`;
+    return `${d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
   } catch {
     return isoStr;
   }
 }
 
-function computeResultsMeta(params) {
-  if (!params) return '';
-  const scenarioLabels = {
-    live: 'Live forecast',
-    storm: 'Storm demo',
-    calm: 'Calm demo',
-    constant_wind: 'Constant wind demo',
-  };
-  const sc = scenarioLabels[params.scenario] || params.scenario || 'Live forecast';
-  const wt = `${Number(params.load_weight_lb || 0).toLocaleString()} lb`;
-  const iv = `${params.interval_miles || 25} mi`;
-  const dep = params.departure_time ? `departs ${formatDepartureSummary(params.departure_time)}` : '';
-  return `${sc}, ${wt}, ${iv}${dep ? `, ${dep}` : ''}`;
+function computeResultsMeta(p) {
+  if (!p) return '';
+  const s = p.scenario === 'storm' ? 'Storm demo' : p.scenario === 'calm' ? 'Calm demo' : 'Live forecast';
+  const dep = p.departure_time ? `, departs ${formatDepartureSummary(p.departure_time)}` : '';
+  return `${s}, ${Number(p.load_weight_lb || 0).toLocaleString()} lb, ${p.interval_miles || 25} mi${dep}`;
 }
 
 export default function App() {
@@ -238,6 +228,8 @@ export default function App() {
           onRetryHeatmap={retryHeatmap}
           is3D={is3D}
           onToggle3D={handleToggle3D}
+          isLeftCollapsed={isLeftPanelCollapsed}
+          isRightCollapsed={isRightPanelCollapsed}
         />
 
         {/* Hero Banner Modal/Overlay (dismissable) */}
