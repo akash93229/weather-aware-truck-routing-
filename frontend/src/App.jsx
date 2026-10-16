@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { getHealth, analyzeTrip } from './api/client';
 import { useHeatmap } from './hooks/useHeatmap';
 import Logo from './components/Logo';
@@ -6,8 +6,9 @@ import Hero from './components/Hero';
 import TripForm from './components/TripForm';
 import MapView from './components/MapView';
 import RouteCards from './components/RouteCards';
-import RiskProfileChart from './components/RiskProfileChart';
 import './App.css';
+
+const RiskProfileChart = lazy(() => import('./components/RiskProfileChart'));
 
 export default function App() {
   const [backendStatus, setBackendStatus] = useState('checking'); // 'checking' | 'ok' | 'unavailable'
@@ -279,13 +280,15 @@ export default function App() {
                     selectedRouteId={selectedRouteId}
                     onSelectRoute={handleSelectRoute}
                   />
-                  <RiskProfileChart
-                    route={
-                      tripResults.routes?.find((r) => r.id === selectedRouteId) ||
-                      tripResults.routes?.[0] ||
-                      null
-                    }
-                  />
+                  <Suspense fallback={<div className="chart-loading-placeholder" style={{ padding: '1rem', color: '#94a3b8', textAlign: 'center' }}>Loading elevation &amp; weather profile...</div>}>
+                    <RiskProfileChart
+                      route={
+                        tripResults.routes?.find((r) => r.id === selectedRouteId) ||
+                        tripResults.routes?.[0] ||
+                        null
+                      }
+                    />
+                  </Suspense>
                 </>
               )}
 

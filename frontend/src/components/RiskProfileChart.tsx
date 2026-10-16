@@ -16,14 +16,6 @@ interface RiskProfileChartProps {
   route: RouteOption | null;
 }
 
-const RISK_LEVEL_LABELS: Record<number, string> = {
-  0: 'Low (0)',
-  1: 'Moderate (1)',
-  2: 'High (2)',
-  3: 'Severe (3)',
-  4: 'No Travel (4)',
-};
-
 const RISK_COLORS: Record<number, string> = {
   0: '#10B981',
   1: '#38BDF8',

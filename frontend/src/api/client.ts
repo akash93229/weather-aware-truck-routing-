@@ -3,7 +3,6 @@ import type {
   TripAnalyzeRequest,
   TripAnalyzeResponse,
   HeatmapResponse,
-  LocationPoint,
 } from '../types/trip';
 
 export const API_BASE_URL: string = (
