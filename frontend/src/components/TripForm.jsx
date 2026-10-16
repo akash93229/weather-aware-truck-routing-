@@ -24,7 +24,7 @@ const TZ_OFFSET_MINS = Math.abs(TZ_OFFSET_MINUTES) % 60;
 const TZ_OFFSET_SIGN = TZ_OFFSET_MINUTES >= 0 ? '+' : '-';
 const TZ_DISPLAY = `${USER_TIMEZONE} (UTC${TZ_OFFSET_SIGN}${String(TZ_OFFSET_HOURS).padStart(2, '0')}:${String(TZ_OFFSET_MINS).padStart(2, '0')})`;
 
-export default function TripForm({ onSubmit, isLoading }) {
+export default function TripForm({ onSubmit, isLoading, onFormChange, onClearRoutes }) {
   // Autocomplete state for Origin
   const [originQuery, setOriginQuery] = useState('');
   const [originCoord, setOriginCoord] = useState(null); // { lat, lng, display_name }
@@ -51,6 +51,34 @@ export default function TripForm({ onSubmit, isLoading }) {
   // Refs for tracking outside clicks
   const originWrapperRef = useRef(null);
   const destWrapperRef = useRef(null);
+
+  // Notify parent component of form parameter changes or clearing
+  useEffect(() => {
+    if (!originQuery.trim() || !destQuery.trim()) {
+      onClearRoutes?.();
+    }
+    onFormChange?.({
+      originQuery,
+      originCoord,
+      destQuery,
+      destCoord,
+      departureTime,
+      loadWeight,
+      intervalMiles,
+      scenario,
+    });
+  }, [
+    originQuery,
+    originCoord,
+    destQuery,
+    destCoord,
+    departureTime,
+    loadWeight,
+    intervalMiles,
+    scenario,
+    onFormChange,
+    onClearRoutes,
+  ]);
 
   // Click outside listener to close dropdowns
   useEffect(() => {
@@ -126,15 +154,15 @@ export default function TripForm({ onSubmit, isLoading }) {
     };
   }, [destQuery, destCoord]);
 
-  // Handle example trip (Chicago to Dallas, 42000 lb, 25 mi)
+  // Handle example trip (Chicago, IL to Dallas, TX, 42000 lb, 25 mi)
   const handleExampleTrip = () => {
     const chicago = {
-      display_name: 'Chicago, Illinois, United States',
+      display_name: 'Chicago, IL',
       lat: 41.8781,
       lng: -87.6298,
     };
     const dallas = {
-      display_name: 'Dallas, Texas, United States',
+      display_name: 'Dallas, TX',
       lat: 32.7767,
       lng: -96.7970,
     };
