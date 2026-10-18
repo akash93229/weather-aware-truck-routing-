@@ -842,6 +842,8 @@ export default function App() {
             units={units}
             focusedStop={focusedStop}
             onSelectStop={setFocusedStop}
+            departureTime={lastTripParams?.departure_time || currentFormState.departureTime}
+            originLocation={lastTripParams?.origin || currentFormState.originCoord}
           />
 
 

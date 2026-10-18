@@ -6,6 +6,7 @@ import maplibreglWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import RiskLegend from './RiskLegend';
 import ForecastSlider from './ForecastSlider';
 import { Icon } from '../ui/icons';
+import { getTimezoneForCoordinate } from '../utils/time';
 import {
   convertTemp,
   formatTemp,
@@ -191,6 +192,8 @@ export default function MapView({
   units = 'imperial',
   focusedStop = null,
   onSelectStop,
+  departureTime = null,
+  originLocation = null,
 }) {
 
   const mapRef = useRef(null);
@@ -209,6 +212,16 @@ export default function MapView({
     if (!selectedRouteObj || !Array.isArray(selectedRouteObj.checkpoints)) return [];
     return selectedRouteObj.checkpoints.filter((cp) => cp.is_key_stop);
   }, [selectedRouteObj]);
+
+  const originTz = useMemo(() => {
+    const origin = originLocation || selectedRouteObj?.checkpoints?.[0];
+    const lat = origin?.lat ?? origin?.coordinate?.[0];
+    const lng = origin?.lng ?? origin?.lon ?? origin?.coordinate?.[1];
+    const label = origin?.label || origin?.display_name || origin?.name || '';
+    return getTimezoneForCoordinate(lat, lng, label);
+  }, [originLocation, selectedRouteObj]);
+
+  const effectiveStartTimeIso = departureTime || selectedRouteObj?.checkpoints?.[0]?.eta || heatmapData?.start_time;
 
   // Fly to focused stop when selected from timeline
   useEffect(() => {
@@ -940,7 +953,8 @@ export default function MapView({
 
         {/* Bottom-Center Corridor Weather Heatmap Floating Pill */}
         <ForecastSlider
-          startTimeIso={heatmapData?.start_time}
+          startTimeIso={effectiveStartTimeIso}
+          originTimezone={originTz}
           hoursCount={heatmapData?.hours_count || 49}
           onHourChange={handleHourChange}
           showHeatmap={showHeatmap}

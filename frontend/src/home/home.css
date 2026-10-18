@@ -27,8 +27,11 @@
   inset: 0;
   width: 100vw;
   height: 100dvh;
-  overflow: hidden;
-  background-color: var(--sl-fallback-bg);
+  background:
+    radial-gradient(ellipse at 25% 25%, rgba(14, 165, 233, 0.18) 0%, transparent 55%),
+    radial-gradient(ellipse at 75% 65%, rgba(16, 185, 129, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 45%, rgba(15, 23, 42, 0.85) 0%, rgba(4, 18, 27, 0.98) 100%),
+    var(--sl-fallback-bg);
   color: var(--sl-ink);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -59,7 +62,7 @@
   transform: scale(1.14);
   transform-origin: 30% 30%;
   z-index: 0;
-  opacity: 0;
+  opacity: 0.85;
   transition: opacity 0.8s var(--e-soft);
   pointer-events: none;
 }
@@ -357,9 +360,11 @@
 /* Layer 2: Centered Hero Block */
 .sl-hero {
   position: absolute;
-  left: 50%;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
   top: 38%;
-  transform: translate(-50%, -50%);
+  transform: translateY(-50%);
   width: 100%;
   max-width: calc(760 * var(--u));
   display: flex;
@@ -498,8 +503,9 @@
 /* Feature Row (3 compact equal cards) */
 .sl-features {
   position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
+  margin-inline: auto;
   bottom: calc(118 * var(--u));
   width: min(calc(980 * var(--u)), calc(100% - calc(112 * var(--u))));
   z-index: 15;
@@ -576,10 +582,13 @@
 /* Risk Scale Pill (Single quiet element) */
 .sl-risk-section {
   position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
+  margin-inline: auto;
   bottom: calc(64 * var(--u));
   z-index: 15;
+  display: flex;
+  justify-content: center;
   animation: sl-riseIn 0.7s var(--e-out) 1.65s both;
 }
 
@@ -848,11 +857,9 @@
   .sl-home *,
   .sl-home *::before,
   .sl-home *::after {
-    animation: none !important;
-    transition: none !important;
-    opacity: 1 !important;
-    transform: none !important;
-    clip-path: none !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 
   .sl-sheen::after {
@@ -860,7 +867,7 @@
   }
 
   .sl-home-video {
-    opacity: 0 !important;
-    display: none !important;
+    opacity: 0.7 !important;
+    display: block !important;
   }
 }

@@ -8,7 +8,9 @@ import type {
 export const API_BASE_URL: string = (
   (import.meta as any).env?.VITE_API_BASE_URL ||
   (import.meta as any).env?.VITE_API_URL ||
-  'http://localhost:8000'
+  ((import.meta as any).env?.PROD
+    ? 'https://stormlane-backend.onrender.com'
+    : 'http://localhost:8000')
 ).replace(/\/+$/, '');
 
 export function getClientId(): string {

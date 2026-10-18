@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { formatSliderTimestamp } from '../utils/time';
+import { formatSliderTimestamp, formatSliderBadge } from '../utils/time';
 import { Icon } from '../ui/icons';
 import { Switch, IconButton, Button, Tooltip } from '../ui/components';
 
 export default function ForecastSlider({
   startTimeIso,
+  originTimezone,
   hoursCount = 49,
   onHourChange,
   showHeatmap,
@@ -175,17 +176,7 @@ export default function ForecastSlider({
 
               <div className="slider-time-badge" id="slider-current-time">
                 <span className="hour-offset-tag">+{currentHour}h</span>
-                <span className="timestamp-tag">
-                  {(() => {
-                    try {
-                      const baseDate = startTimeIso ? new Date(startTimeIso) : new Date();
-                      const targetDate = new Date(baseDate.getTime() + currentHour * 3600 * 1000);
-                      return `, ${targetDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
-                    } catch {
-                      return '';
-                    }
-                  })()}
-                </span>
+                <span className="timestamp-tag">{formatSliderBadge(startTimeIso, currentHour, originTimezone)}</span>
               </div>
             </div>
 
