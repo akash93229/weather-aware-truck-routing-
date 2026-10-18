@@ -1,6 +1,5 @@
 """Open-Meteo weather provider implementation with chunking, retries, and caching."""
 
-import math
 import logging
 import requests
 import time

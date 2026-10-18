@@ -135,7 +135,7 @@ def get_routes(
                 load_weight_lb=load_weight_lb,
                 max_alternatives=2,
             )
-        except Exception as exc:
+        except Exception:
             routes = fallback_provider.calculate_routes(
                 origin=origin,
                 destination=destination,

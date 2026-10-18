@@ -3,6 +3,7 @@
 import logging
 import requests
 import time
+import threading
 from urllib.parse import quote
 from typing import List, Dict, Any, Optional
 from django.conf import settings
@@ -71,8 +72,6 @@ def geocode_address(query: str, api_key: Optional[str] = None) -> List[Dict[str,
 
 
 # Rate Limiter: Max 4 QPS -> 0.25s minimum interval between TomTom requests
-import threading
-
 _rate_limit_lock = threading.Lock()
 _last_request_timestamp = 0.0
 _MIN_INTERVAL_SECONDS = 0.25

@@ -4,7 +4,7 @@ Enriches checkpoints with city names (for 6-10 key stops) and concise driving ad
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from trips.services.geocoding import reverse_geocode
 
 logger = logging.getLogger(__name__)

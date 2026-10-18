@@ -1,8 +1,6 @@
 import os
 import sys
 import time
-import requests
-from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
@@ -10,7 +8,6 @@ import django
 django.setup()
 
 from trips.services.geocoding import geocode_address
-from trips.services.routing.service import get_routes
 
 test_cities = [
     "Las Vegas", "Chicago", "Los Angeles", "New York", "Miami", "Seattle",
