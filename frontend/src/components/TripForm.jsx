@@ -711,9 +711,10 @@ export default function TripForm({ onSubmit, isLoading, onFormChange, onClearRou
       <div className="form-submit-row">
         <button
           type="submit"
-          className="btn-submit"
+          className="btn-submit analyze-btn"
           disabled={isLoading}
           id="analyze-trip-btn"
+          data-testid="analyze-btn"
         >
           {isLoading ? (
             <span className="btn-loading-content">

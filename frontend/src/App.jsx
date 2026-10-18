@@ -227,7 +227,7 @@ export default function App() {
         if (exBtn) {
           exBtn.click();
           setTimeout(() => {
-            const analyzeBtn = document.getElementById('analyze-btn');
+            const analyzeBtn = document.getElementById('analyze-trip-btn') || document.getElementById('analyze-btn');
             if (analyzeBtn) analyzeBtn.click();
           }, 120);
         }
@@ -793,7 +793,13 @@ export default function App() {
                             setIsLeftDockOpen(true);
                             setLeftDockTab('params');
                             const exBtn = document.getElementById('try-example-trip-btn');
-                            if (exBtn) exBtn.click();
+                            if (exBtn) {
+                              exBtn.click();
+                              setTimeout(() => {
+                                const analyzeBtn = document.getElementById('analyze-trip-btn') || document.getElementById('analyze-btn');
+                                if (analyzeBtn) analyzeBtn.click();
+                              }, 120);
+                            }
                           }}
                         >
                           Try Sample (Chicago → Dallas)
