@@ -57,6 +57,7 @@ def geocode_address(query: str, api_key: Optional[str] = None) -> List[Dict[str,
                 if lat is not None and lon is not None:
                     results.append({
                         'label': label,
+                        'display_name': label,
                         'lat': float(lat),
                         'lng': float(lon),
                     })

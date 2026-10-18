@@ -5,12 +5,15 @@ import type {
   HeatmapResponse,
 } from '../types/trip';
 
+const envUrl = ((import.meta as any).env?.VITE_API_BASE_URL || (import.meta as any).env?.VITE_API_URL || '').trim();
+const isProd = Boolean((import.meta as any).env?.PROD);
+
 export const API_BASE_URL: string = (
-  (import.meta as any).env?.VITE_API_BASE_URL ||
-  (import.meta as any).env?.VITE_API_URL ||
-  ((import.meta as any).env?.PROD
-    ? 'https://stormlane-backend.onrender.com'
-    : 'http://localhost:8000')
+  (isProd && envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1'))
+    ? envUrl
+    : (isProd
+      ? 'https://stormlane-backend.onrender.com'
+      : (envUrl || 'http://localhost:8000'))
 ).replace(/\/+$/, '');
 
 export function getClientId(): string {
@@ -109,8 +112,13 @@ export async function getGeocode(
       params: { q: query.trim() },
       signal,
     });
-    const data = res.data;
-    return Array.isArray(data) ? data : data?.results || [];
+    const raw = Array.isArray(data) ? data : data?.results || [];
+    return raw.map((item: any) => ({
+      lat: item.lat,
+      lng: item.lng,
+      label: item.label || item.display_name || '',
+      display_name: item.display_name || item.label || '',
+    }));
   } catch (err: any) {
     if (axios.isCancel(err) || err?.name === 'CanceledError' || err?.name === 'AbortError') {
       return [];

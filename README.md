@@ -1,12 +1,12 @@
 # Weather-Aware Commercial Truck Routing
 
-[![CI](https://github.com/akash93229/weather-aware-truck-routing-/actions/workflows/ci.yml/badge.svg?branch=ui-redesign)](https://github.com/akash93229/weather-aware-truck-routing-/actions/workflows/ci.yml)
-*(Note: status badge currently tracks `?branch=ui-redesign`; switch query to `?branch=main` after merging into main)*
+[![CI](https://github.com/akash93229/weather-aware-truck-routing-/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/akash93229/weather-aware-truck-routing-/actions/workflows/ci.yml)
 
 A production-grade commercial truck routing and weather hazard intelligence platform that evaluates up to three distinct route corridors against real-time hourly forecasts and gross truck load weight constraints to recommend the safest path.
 
-- **Live app**: *(coming soon)*
-- **Loom walkthrough**: *(coming soon)*
+- **Frontend (Vercel)**: [https://stormlane.vercel.app](https://stormlane.vercel.app)
+- **Backend API (Render)**: [https://stormlane-backend.onrender.com](https://stormlane-backend.onrender.com)
+- **Interactive Swagger Docs**: [https://stormlane-backend.onrender.com/api/docs/](https://stormlane-backend.onrender.com/api/docs/)
 
 ---
 
@@ -290,6 +290,7 @@ npm run build
 ## 12. Project Status
 
 ### Completed
+- [x] Hosted live public cloud deployment (Vercel Frontend + Render Backend)
 - [x] Multi-route generation (up to 3 routes) with TomTom primary and OSRM automatic fallback
 - [x] Lateral via-point route expansion (±30, ±45 mi) when fewer than 3 distinct corridors exist
 - [x] Checkpoint ETA calculation and 1D Voronoi corridor attribution
@@ -302,12 +303,22 @@ npm run build
 - [x] Stale results indicator banner and route reset upon clearing inputs
 - [x] Direct route color chips matching map polyline styling
 - [x] Responsive layout tested across 1920px, 1440px, 1280px, 1024px, and 390px viewports
-- [x] Comprehensive test suite (110 backend tests, 6 frontend tests) and zero-warning linting
+- [x] Comprehensive test suite (119 backend tests, 26 frontend tests) and zero-warning linting
 - [x] Automated GitHub Actions CI workflow for backend and frontend jobs
 
-### Not Yet (Planned)
-- [ ] Hosted public cloud deployment
-- [ ] Recorded Loom video walkthrough
+---
+
+## 13. System Assumptions Table
+
+| Category | Assumption | Rationale / Implementation Detail |
+| :--- | :--- | :--- |
+| **Truck Speed & Timing** | Commercial trucks average ~40–62 mph | Standard passenger vehicle routing algorithms overestimate commercial transit speeds. A 1.15x duration multiplier is applied on OSRM fallback; TomTom uses commercial truck routing profiles. |
+| **Load Constraints** | Cargo weights range from 1 to 80,000 lbs | Federal Bridge Formula standard max gross vehicle weight without special permitting is 80,000 lbs. Empty trailers (≤25k lbs) are strictly more vulnerable to crosswinds (No Travel triggered at lower gust speeds). |
+| **Checkpoint Intervals** | 10, 25, 50 miles, or Auto-adaptive | Balances spatial resolution against Open-Meteo batch querying latency. Checkpoint ETA uses cumulative elapsed drive time from departure. |
+| **Weather Sampling** | Weather is evaluated at checkpoint ETA hour | A 20-hour transit corridor cannot evaluate hour 0 weather across its entire length; each checkpoint samples Open-Meteo hourly forecast corresponding to its exact projected arrival time. |
+| **Provider Fallback** | TomTom primary -> OSRM keyless fallback | Guarantees 100% routing availability even when TomTom quotas are exceeded or regional services are disrupted. |
+| **Infrastructure** | Render free-tier cold starts take 30–60s | Free web services spin down after 15 min idle. The frontend UI provides an active "Server waking up" progressive hint rather than failing prematurely. |
+
 
 ---
 

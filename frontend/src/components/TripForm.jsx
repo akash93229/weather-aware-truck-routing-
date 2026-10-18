@@ -57,7 +57,7 @@ export default function TripForm({ onSubmit, isLoading, onFormChange, onClearRou
 
   // Notify parent component of form parameter changes or clearing
   useEffect(() => {
-    if (!originQuery.trim() || !destQuery.trim()) {
+    if (!originQuery?.trim() || !destQuery?.trim()) {
       onClearRoutes?.();
     }
     onFormChange?.({
@@ -287,8 +287,9 @@ export default function TripForm({ onSubmit, isLoading, onFormChange, onClearRou
       if (originHighlightedIndex >= 0 && originSuggestions[originHighlightedIndex]) {
         e.preventDefault();
         const item = originSuggestions[originHighlightedIndex];
-        setOriginQuery(item.display_name);
-        setOriginCoord(item);
+        const name = item.display_name || item.label || '';
+        setOriginQuery(name);
+        setOriginCoord({ ...item, display_name: name, label: name });
         setOriginError('');
         setShowOriginDropdown(false);
       }
@@ -309,8 +310,9 @@ export default function TripForm({ onSubmit, isLoading, onFormChange, onClearRou
       if (destHighlightedIndex >= 0 && destSuggestions[destHighlightedIndex]) {
         e.preventDefault();
         const item = destSuggestions[destHighlightedIndex];
-        setDestQuery(item.display_name);
-        setDestCoord(item);
+        const name = item.display_name || item.label || '';
+        setDestQuery(name);
+        setDestCoord({ ...item, display_name: name, label: name });
         setDestError('');
         setShowDestDropdown(false);
       }
@@ -518,15 +520,16 @@ export default function TripForm({ onSubmit, isLoading, onFormChange, onClearRou
                   key={`${item.lat}-${item.lng}-${idx}`}
                   className={`suggestion-item ${originHighlightedIndex === idx ? 'highlighted' : ''}`}
                   onClick={() => {
-                    setOriginQuery(item.display_name);
-                    setOriginCoord(item);
+                    const name = item.display_name || item.label || '';
+                    setOriginQuery(name);
+                    setOriginCoord({ ...item, display_name: name, label: name });
                     setOriginError('');
                     setShowOriginDropdown(false);
                   }}
                   role="option"
                   aria-selected={originHighlightedIndex === idx}
                 >
-                  <span className="suggestion-name">{item.display_name}</span>
+                  <span className="suggestion-name">{item.display_name || item.label}</span>
                   <span className="suggestion-coords">({item.lat.toFixed(3)}, {item.lng.toFixed(3)})</span>
                 </li>
               ))}
@@ -606,15 +609,16 @@ export default function TripForm({ onSubmit, isLoading, onFormChange, onClearRou
                   key={`${item.lat}-${item.lng}-${idx}`}
                   className={`suggestion-item ${destHighlightedIndex === idx ? 'highlighted' : ''}`}
                   onClick={() => {
-                    setDestQuery(item.display_name);
-                    setDestCoord(item);
+                    const name = item.display_name || item.label || '';
+                    setDestQuery(name);
+                    setDestCoord({ ...item, display_name: name, label: name });
                     setDestError('');
                     setShowDestDropdown(false);
                   }}
                   role="option"
                   aria-selected={destHighlightedIndex === idx}
                 >
-                  <span className="suggestion-name">{item.display_name}</span>
+                  <span className="suggestion-name">{item.display_name || item.label}</span>
                   <span className="suggestion-coords">({item.lat.toFixed(3)}, {item.lng.toFixed(3)})</span>
                 </li>
               ))}
