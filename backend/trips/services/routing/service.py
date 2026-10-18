@@ -9,7 +9,7 @@ from django.core.cache import cache
 
 from django.conf import settings
 from trips.services.geo import haversine_distance, cumulative_distances, point_at_distance
-from trips.services.routing.base import Route, RoutingProvider, RoutingUnavailable
+from trips.services.routing.base import Route, RoutingProvider, RoutingUnavailable, NoRouteFound
 from trips.services.routing.here import HERERoutingProvider
 from trips.services.routing.tomtom import TomTomRoutingProvider
 from trips.services.routing.osrm import OSRMRoutingProvider
@@ -92,6 +92,7 @@ def get_routes(
     destination: Tuple[float, float],
     provider: Optional[RoutingProvider] = None,
     load_weight_lb: Optional[float] = None,
+    fast_mode: bool = False,
 ) -> Dict[str, Any]:
     """
     Retrieve up to 3 distinct truck routes between origin and destination.
@@ -126,16 +127,15 @@ def get_routes(
     routes: List[Route] = []
 
     t_init = time.perf_counter()
-    try:
-        routes = active_provider.calculate_routes(
-            origin=origin,
-            destination=destination,
-            load_weight_lb=load_weight_lb,
-            max_alternatives=2,
-        )
-    except RoutingUnavailable as exc:
-        logger.warning('Primary routing provider %s unavailable (%s). Falling back to OSRM (with 1.15x truck duration scale).', provider_used, exc)
+    if provider is not None:
         try:
+            routes = active_provider.calculate_routes(
+                origin=origin,
+                destination=destination,
+                load_weight_lb=load_weight_lb,
+                max_alternatives=2,
+            )
+        except Exception as exc:
             routes = fallback_provider.calculate_routes(
                 origin=origin,
                 destination=destination,
@@ -143,18 +143,79 @@ def get_routes(
                 max_alternatives=2,
             )
             provider_used = 'osrm_fallback'
-        except Exception as osrm_exc:
-            raise RoutingUnavailable(f'All routing providers failed. {exc} / {osrm_exc}') from osrm_exc
+    elif provider_used == 'tomtom':
+        # Race TomTom and OSRM concurrently with priority to TomTom if completed under 1.5s
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+        try:
+            future_tomtom = executor.submit(
+                active_provider.calculate_routes,
+                origin,
+                destination,
+                load_weight_lb,
+                None,
+                2,
+            )
+            future_osrm = executor.submit(
+                fallback_provider.calculate_routes,
+                origin,
+                destination,
+                load_weight_lb,
+                None,
+                2,
+            )
+
+            try:
+                routes = future_tomtom.result(timeout=1.5)
+                provider_used = 'tomtom'
+            except (concurrent.futures.TimeoutError, RoutingUnavailable, NoRouteFound, Exception) as exc:
+                try:
+                    routes = future_osrm.result(timeout=1.8)
+                    provider_used = 'osrm_fallback'
+                    logger.info('TomTom exceeded 1.5s or failed (%s); used OSRM fallback (took %.3fs)', exc, time.perf_counter() - t_init)
+                except NoRouteFound:
+                    raise
+                except Exception as osrm_exc:
+                    if isinstance(exc, concurrent.futures.TimeoutError):
+                        try:
+                            routes = future_tomtom.result(timeout=1.5)
+                            provider_used = 'tomtom'
+                        except Exception:
+                            raise RoutingUnavailable(f'All routing providers failed. {exc} / {osrm_exc}')
+                    elif isinstance(exc, NoRouteFound):
+                        raise
+                    else:
+                        raise RoutingUnavailable(f'All routing providers failed. {exc} / {osrm_exc}')
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+    else:
+        try:
+            routes = active_provider.calculate_routes(
+                origin=origin,
+                destination=destination,
+                load_weight_lb=load_weight_lb,
+                max_alternatives=2,
+            )
+        except RoutingUnavailable as exc:
+            try:
+                routes = fallback_provider.calculate_routes(
+                    origin=origin,
+                    destination=destination,
+                    load_weight_lb=load_weight_lb,
+                    max_alternatives=2,
+                )
+                provider_used = 'osrm_fallback'
+            except Exception as osrm_exc:
+                raise RoutingUnavailable(f'All routing providers failed. {exc} / {osrm_exc}')
 
     init_duration = time.perf_counter() - t_init
     distinct_routes = filter_distinct_routes(routes)
     logger.info('[TIMING] initial_routing took %.3fs (found %d routes, %d distinct)', init_duration, len(routes), len(distinct_routes))
 
-    # If fewer than 3 distinct routes remain, generate via-points sideways
+    # If fewer than 3 distinct routes remain, generate via-points sideways (skip in fast_mode if at least 1 route)
     notes = []
     t_via = time.perf_counter()
     extra_calls = 0
-    if len(distinct_routes) < 3 and distinct_routes:
+    if not fast_mode and len(distinct_routes) < 3 and distinct_routes:
         main_route = distinct_routes[0]
         cum_dist = cumulative_distances(main_route.points)
         mid_pt = point_at_distance(main_route.points, cum_dist[-1] / 2.0, cum_dist)
@@ -202,6 +263,19 @@ def get_routes(
 
     if len(distinct_routes) < 3:
         notes.append(f'Only {len(distinct_routes)} distinct sensible route(s) found between these locations.')
+
+    # Apply realistic commercial truck speed calibration for live routes
+    if provider is None:
+        TRUCK_SPEED_CAP_MPH = 60.0
+        TRUCK_TARGET_AVG_MPH = 58.5
+
+        for r in distinct_routes:
+            if r.distance_mi > 0 and r.duration_s > 0:
+                if provider_used == 'tomtom':
+                    r.duration_s = round(r.duration_s * 1.15, 1)
+                avg_speed = r.distance_mi / (r.duration_s / 3600.0)
+                if avg_speed > TRUCK_SPEED_CAP_MPH:
+                    r.duration_s = round((r.distance_mi / TRUCK_TARGET_AVG_MPH) * 3600.0, 1)
 
     # Sort routes deterministically by travel duration, then distance, then ID
     distinct_routes.sort(key=lambda r: (round(r.duration_s, 1), round(r.distance_mi, 2), r.id))

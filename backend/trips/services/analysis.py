@@ -81,8 +81,9 @@ def analyze_routes(
             else:
                 cp['no_forecast'] = False
                 cp['has_forecast'] = True
-                # Store (lat, lng) rounded to 4 decimals for weather provider lookup
-                pt = (round(cp['coordinate'][0], 4), round(cp['coordinate'][1], 4))
+                # Round (lat, lng) to 0.1 deg (~7 mi) for deduplication
+                pt = (round(cp['coordinate'][0], 1), round(cp['coordinate'][1], 1))
+                cp['rounded_coordinate'] = pt
                 valid_points_set.add(pt)
                 valid_etas.append(eta)
 
@@ -118,9 +119,14 @@ def analyze_routes(
                 }
                 cp['level'] = RiskLevel.LOW
             else:
-                pt = (round(cp['coordinate'][0], 4), round(cp['coordinate'][1], 4))
-                location_forecast = weather_lookup.get(pt, {})
-                weather = get_nearest_hour_weather(location_forecast, cp['eta'])
+                pt = cp.get('rounded_coordinate') or (round(cp['coordinate'][0], 1), round(cp['coordinate'][1], 1))
+                location_forecast = weather_lookup.get(pt)
+                if not location_forecast and weather_lookup:
+                    # Reuse nearest available forecast point for close coordinates
+                    nearest_key = min(weather_lookup.keys(), key=lambda p: (p[0] - pt[0])**2 + (p[1] - pt[1])**2)
+                    location_forecast = weather_lookup.get(nearest_key, {})
+
+                weather = get_nearest_hour_weather(location_forecast or {}, cp['eta'])
 
                 if weather is not None:
                     cp['weather'] = {
@@ -128,6 +134,9 @@ def analyze_routes(
                         'gust_mph': weather.gust_mph,
                         'rain_in_hr': weather.rain_in_hr,
                         'snow_in_hr': weather.snow_in_hr,
+                        'temp_f': getattr(weather, 'temp_f', None),
+                        'humidity_pct': getattr(weather, 'humidity_pct', None),
+                        'condition': getattr(weather, 'condition', None),
                     }
                     risk_data = checkpoint_risk(
                         {
@@ -168,6 +177,11 @@ def analyze_routes(
         ranked_summary['checkpoints'] = all_checkpoints_by_route[r_id]
         detailed_ranked.append(ranked_summary)
 
+    has_partial = getattr(provider, 'has_partial_weather', False)
+    is_unavailable = getattr(provider, 'is_weather_unavailable', False)
+    if has_partial and 'Some weather data unavailable. Displaying partial forecast.' not in warnings:
+        warnings.append('Some weather data unavailable. Displaying partial forecast.')
+
     return {
         'recommended_route_id': recommendation_result['recommended_route_id'],
         'recommended_route': recommendation_result['recommended_route'],
@@ -175,4 +189,6 @@ def analyze_routes(
         'fastest_route': recommendation_result['fastest_route'],
         'explanation': recommendation_result['explanation'],
         'warnings': warnings,
+        'partial_weather': has_partial,
+        'weather_unavailable': is_unavailable,
     }

@@ -9,7 +9,8 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.core.cache import cache
 
-from trips.api.serializers import RouteRequestSerializer, TripAnalyzeSerializer
+from trips.api.serializers import RouteRequestSerializer, TripAnalyzeSerializer, TripSearchSerializer
+from trips.models import TripSearch
 from trips.services.risk import (
     RiskLevel,
 )
@@ -24,12 +25,15 @@ from trips.services.ors import (
 )
 from trips.services.routing.service import get_routes
 from trips.services.routing.base import RoutingUnavailable, NoRouteFound
-from trips.services.geocoding import geocode_address
+from trips.services.geocoding import geocode_address, reverse_geocode
+from trips.services.weather.report import get_full_weather_report
 from trips.services.analysis import analyze_routes
 from trips.services.heatmap import generate_heatmap
 from trips.services.weather.open_meteo import OpenMeteoProvider
 from trips.services.weather.fixture import FixtureWeatherProvider
 from trips.services.weather.base import Weather, WeatherUnavailable
+from trips.services.timeline import enrich_checkpoints_with_stops
+from trips.services.checkpoints import generate_checkpoints
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +182,8 @@ def analyze_trip_view(request, routing_provider=None, weather_provider=None):
             logger.info('[TIMING] total_analyze_request (cached) took %.3fs', total_duration)
             return Response(cached_analysis)
 
+    stage = request.query_params.get('stage') or data.get('stage')
+
     # Step 1: Calculate distinct routes
     try:
         routes_result = get_routes(
@@ -185,6 +191,7 @@ def analyze_trip_view(request, routing_provider=None, weather_provider=None):
             destination=(dest['lat'], dest['lng']),
             provider=routing_provider,
             load_weight_lb=load_lb,
+            fast_mode=(stage == 'routes'),
         )
     except NoRouteFound as exc:
         return Response(
@@ -208,6 +215,65 @@ def analyze_trip_view(request, routing_provider=None, weather_provider=None):
             {'error': {'code': 'no_route_found', 'message': 'No routes found for the given locations.'}},
             status=status.HTTP_404_NOT_FOUND,
         )
+
+    if stage == 'routes':
+        fast_routes = []
+        for idx, r in enumerate(computed_routes):
+            simplified_geojson = simplify_geometry(r.points, max_points=1000)
+            cps = generate_checkpoints(
+                polyline=r.points,
+                total_duration_seconds=r.duration_s,
+                departure_time=dep_time,
+                interval_miles=interval_mi,
+            )
+            initial_cps = [
+                {
+                    'mile': round(cp['mile_mark'], 1),
+                    'lat': round(cp['coordinate'][0], 5),
+                    'lng': round(cp['coordinate'][1], 5),
+                    'eta': cp['eta_iso'],
+                    'weather': None,
+                    'risk': {
+                        'level': 0,
+                        'label': 'Low',
+                        'drivers': [],
+                        'load_rule': None,
+                    },
+                    'is_key_stop': False,
+                    'name': None,
+                    'advisory': None,
+                }
+                for cp in cps
+            ]
+            fast_routes.append({
+                'id': r.id,
+                'label': r.label,
+                'distance_mi': r.distance_mi,
+                'duration_s': r.duration_s,
+                'geometry': simplified_geojson,
+                'recommended': idx == 0,
+                'summary': {
+                    'miles_by_level': {'0': r.distance_mi},
+                    'avg_risk': 0.0,
+                    'max_level': 0,
+                    'blocked': False,
+                },
+                'checkpoints': initial_cps,
+            })
+
+        fast_duration = time.perf_counter() - t_req_start
+        logger.info('[TIMING] fast_routes_stage took %.3fs', fast_duration)
+        return Response({
+            'recommendation': {
+                'route_id': fast_routes[0]['id'] if fast_routes else None,
+                'reasons': ['Initial route polyline computed (weather hazards calculating...)'],
+            },
+            'warnings': routes_result.get('notes', []),
+            'routes': fast_routes,
+            'provider_used': routes_result.get('provider_used', 'unknown'),
+            'stage': 'routes',
+            'progressive': True,
+        })
 
     # Step 2: Determine weather provider (live vs demo scenario)
     const_wind = data.get('constant_wind_mph')
@@ -257,10 +323,17 @@ def analyze_trip_view(request, routing_provider=None, weather_provider=None):
             checkpoint_interval_miles=interval_mi,
         )
     except WeatherUnavailable as exc:
-        return Response(
-            {'error': {'code': 'weather_unavailable', 'message': str(exc)}},
-            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        logger.warning('Weather unavailable for trip analysis, degrading gracefully: %s', exc)
+        fixture_provider = FixtureWeatherProvider.calm()
+        analysis_result = analyze_routes(
+            routes=route_input_dicts,
+            departure_time=dep_time,
+            load_lb=load_lb,
+            weather_provider=fixture_provider,
+            checkpoint_interval_miles=interval_mi,
         )
+        analysis_result['weather_unavailable'] = True
+        analysis_result['warnings'].append('Weather service is currently unavailable. Displaying routes without weather overlay.')
     except Exception as exc:
         return Response(
             {'error': {'code': 'analysis_error', 'message': f'Analysis error: {exc}'}},
@@ -284,6 +357,7 @@ def analyze_trip_view(request, routing_provider=None, weather_provider=None):
     formatted_routes = []
     # Map from route_id to original computed route object for geometry
     orig_routes_by_id = {r.id: r for r in computed_routes}
+    shared_place_cache = {}
 
     for summary in analysis_result.get('ranked_routes', []):
         r_id = summary['route_id']
@@ -303,6 +377,9 @@ def analyze_trip_view(request, routing_provider=None, weather_provider=None):
                     'gust_mph': round(cp['weather']['gust_mph'], 1),
                     'rain_in_hr': round(cp['weather']['rain_in_hr'], 2),
                     'snow_in_hr': round(cp['weather']['snow_in_hr'], 2),
+                    'temp_f': round(cp['weather']['temp_f'], 1) if cp['weather'].get('temp_f') is not None else None,
+                    'humidity_pct': round(float(cp['weather']['humidity_pct']), 0) if cp['weather'].get('humidity_pct') is not None else None,
+                    'condition': str(cp['weather']['condition']) if cp['weather'].get('condition') is not None else None,
                 } if cp.get('weather') else None,
                 'risk': {
                     'level': int(cp['risk']['level']),
@@ -311,6 +388,13 @@ def analyze_trip_view(request, routing_provider=None, weather_provider=None):
                     'load_rule': cp['risk']['load_rule'],
                 },
             })
+
+        formatted_cps = enrich_checkpoints_with_stops(
+            formatted_cps,
+            origin_name=orig.get('label') or orig.get('address'),
+            dest_name=dest.get('label') or dest.get('address'),
+            place_cache=shared_place_cache,
+        )
 
         formatted_routes.append({
             'id': r_id,
@@ -342,6 +426,8 @@ def analyze_trip_view(request, routing_provider=None, weather_provider=None):
         'warnings': all_warnings,
         'routes': formatted_routes,
         'provider_used': provider_used,
+        'partial_weather': bool(analysis_result.get('partial_weather', False)),
+        'weather_unavailable': bool(analysis_result.get('weather_unavailable', False)),
     }
 
     if analysis_cache_key is not None:
@@ -445,4 +531,134 @@ def heatmap_view(request, routing_provider=None, weather_provider=None):
         )
 
     return Response(heatmap_data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def reverse_geocode_view(request):
+    """
+    GET /api/geocode/reverse/?lat=...&lon=...
+    Reverse geocodes coordinates to a readable label via TomTom (10 min cache).
+    """
+    lat_str = request.query_params.get('lat')
+    lon_str = request.query_params.get('lon') or request.query_params.get('lng')
+    if not lat_str or not lon_str:
+        return Response({'error': 'lat and lon query parameters are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        lat = float(lat_str)
+        lon = float(lon_str)
+    except ValueError:
+        return Response({'error': 'lat and lon must be valid floats.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+        return Response({'error': 'lat must be between -90 and 90, lon between -180 and 180.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    res = reverse_geocode(lat, lon)
+    return Response(res, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def weather_report_view(request):
+    """
+    GET /api/weather/report/?origin_lat=&origin_lon=&dest_lat=&dest_lon=&departure=...
+    Returns current conditions and hourly forecast for origin and optional destination.
+    """
+    orig_lat_str = request.query_params.get('origin_lat')
+    orig_lon_str = request.query_params.get('origin_lon')
+    if not orig_lat_str or not orig_lon_str:
+        return Response({'error': 'origin_lat and origin_lon parameters are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        orig_lat = float(orig_lat_str)
+        orig_lon = float(orig_lon_str)
+    except ValueError:
+        return Response({'error': 'Coordinates must be valid numbers.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    dest_lat = None
+    dest_lon = None
+    dest_lat_str = request.query_params.get('dest_lat')
+    dest_lon_str = request.query_params.get('dest_lon')
+    if dest_lat_str and dest_lon_str:
+        try:
+            dest_lat = float(dest_lat_str)
+            dest_lon = float(dest_lon_str)
+        except ValueError:
+            pass
+
+    departure = request.query_params.get('departure')
+    report = get_full_weather_report(orig_lat, orig_lon, dest_lat, dest_lon, departure)
+    return Response(report, status=status.HTTP_200_OK)
+
+
+def get_client_id(request) -> str:
+    """Extract and validate anonymous client id from request headers."""
+    client_id = request.headers.get('X-Client-Id') or request.META.get('HTTP_X_CLIENT_ID')
+    if not client_id or not client_id.strip():
+        return 'anonymous'
+    return client_id.strip()[:64]
+
+
+@api_view(['GET', 'POST', 'DELETE'])
+def recent_trips_view(request):
+    """
+    GET /api/trips/?limit=10 - list recent searches for client_id (deduped origin/dest)
+    POST /api/trips/ - save new trip search, auto-capping at 50 records
+    DELETE /api/trips/ - clear all searches for client_id
+    """
+    client_id = get_client_id(request)
+
+    if request.method == 'GET':
+        try:
+            limit = int(request.query_params.get('limit', 10))
+        except (ValueError, TypeError):
+            limit = 10
+        limit = max(1, min(limit, 50))
+
+        qs = TripSearch.objects.filter(client_id=client_id).order_by('-created_at')
+
+        seen = set()
+        deduped = []
+        for trip in qs:
+            key = (round(trip.origin_lat, 3), round(trip.origin_lon, 3), round(trip.dest_lat, 3), round(trip.dest_lon, 3))
+            if key not in seen:
+                seen.add(key)
+                deduped.append(trip)
+            if len(deduped) >= limit:
+                break
+
+        serializer = TripSearchSerializer(deduped, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        serializer = TripSearchSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        trip = serializer.save(client_id=client_id)
+
+        # Cap at 50 entries per client_id
+        count = TripSearch.objects.filter(client_id=client_id).count()
+        if count > 50:
+            excess = count - 50
+            old_ids = list(TripSearch.objects.filter(client_id=client_id).order_by('created_at').values_list('id', flat=True)[:excess])
+            TripSearch.objects.filter(id__in=old_ids).delete()
+
+        return Response(TripSearchSerializer(trip).data, status=status.HTTP_201_CREATED)
+
+    elif request.method == 'DELETE':
+        TripSearch.objects.filter(client_id=client_id).delete()
+        return Response({'status': 'cleared'}, status=status.HTTP_200_OK)
+
+
+@api_view(['DELETE'])
+def recent_trip_detail_view(request, trip_id):
+    """
+    DELETE /api/trips/<id>/ - delete single trip search for client_id
+    """
+    client_id = get_client_id(request)
+    try:
+        trip = TripSearch.objects.get(id=trip_id, client_id=client_id)
+        trip.delete()
+        return Response({'status': 'deleted'}, status=status.HTTP_200_OK)
+    except TripSearch.DoesNotExist:
+        return Response({'error': 'Trip not found.'}, status=status.HTTP_404_NOT_FOUND)
+
 

@@ -233,3 +233,10 @@ dist/
 # Tool caches
 .pytest_cache/
 .ruff_cache/
+
+# Video and test report artifacts
+Weather video.mp4
+*.jsonl
+all_locations_verified.json
+qa_rigorous_results_v2.json
+

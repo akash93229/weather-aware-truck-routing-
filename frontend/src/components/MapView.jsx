@@ -1,17 +1,119 @@
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
-import Map, { Source, Layer, Popup, NavigationControl, AttributionControl } from 'react-map-gl/maplibre';
+import Map, { Source, Layer, Popup, NavigationControl, Marker } from 'react-map-gl/maplibre';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import maplibreglWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import RiskLegend from './RiskLegend';
 import ForecastSlider from './ForecastSlider';
+import { Icon } from '../ui/icons';
+import {
+  convertTemp,
+  formatTemp,
+  formatSpeed,
+  formatPrecip,
+  getWeatherIconName,
+} from '../utils/driverBriefHelpers';
 
 // Ensure MapLibre Web Worker loads properly under Vite bundler and dev server
 if (typeof maplibregl.setWorkerUrl === 'function') {
   maplibregl.setWorkerUrl(maplibreglWorkerUrl);
 }
 
-const CARTO_DARK_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+// Zero API Key Vector & Raster Styles
+const OPENFREEMAP_BRIGHT_STYLE = 'https://tiles.openfreemap.org/styles/bright';
+
+const SATELLITE_STYLE = {
+  version: 8,
+  sources: {
+    'esri-satellite': {
+      type: 'raster',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: 'Esri, Maxar, Earthstar Geographics',
+    },
+    'esri-places': {
+      type: 'raster',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+      maxzoom: 19,
+    },
+    'esri-roads': {
+      type: 'raster',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+      maxzoom: 19,
+    },
+  },
+  layers: [
+    {
+      id: 'satellite-tiles',
+      type: 'raster',
+      source: 'esri-satellite',
+      minzoom: 0,
+      maxzoom: 19,
+    },
+    {
+      id: 'satellite-roads',
+      type: 'raster',
+      source: 'esri-roads',
+      minzoom: 4,
+      maxzoom: 19,
+    },
+    {
+      id: 'satellite-labels',
+      type: 'raster',
+      source: 'esri-places',
+      minzoom: 1.2,
+      maxzoom: 19,
+    },
+  ],
+};
+
+const STANDARD_DARK_STYLE = {
+  version: 8,
+  sources: {
+    'esri-dark-gray-base': {
+      type: 'raster',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+      maxzoom: 16,
+      attribution: 'Esri, HERE, Garmin, © OpenStreetMap contributors',
+    },
+    'esri-dark-gray-labels': {
+      type: 'raster',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+      maxzoom: 16,
+    },
+  },
+  layers: [
+    {
+      id: 'esri-dark-base-tiles',
+      type: 'raster',
+      source: 'esri-dark-gray-base',
+      minzoom: 0,
+      maxzoom: 19,
+    },
+    {
+      id: 'esri-dark-reference-tiles',
+      type: 'raster',
+      source: 'esri-dark-gray-labels',
+      minzoom: 1.2,
+      maxzoom: 19,
+    },
+  ],
+};
 
 // Distinct colors for routes
 const ROUTE_PALETTES = [
@@ -44,57 +146,25 @@ function getRiskBadgeColor(level) {
   }
 }
 
-function getMapPadding() {
+function getMapPadding(isLeftOpen, isRightOpen) {
   const width = typeof window !== 'undefined' ? window.innerWidth : 1440;
   const height = typeof window !== 'undefined' ? window.innerHeight : 900;
 
-  // Phone (< 768px): bottom sheet covers bottom portion of screen
-  if (width < 768) {
+  if (width < 860) {
     const bottomSheetHeight = Math.min(Math.round(height * 0.45), 360);
     return {
-      top: 60,
+      top: 24,
       bottom: bottomSheetHeight + 20,
-      left: 20,
-      right: 20,
+      left: 16,
+      right: 16,
     };
   }
 
-  // Tablet (768px - 1024px): left panel ~300px, right panel ~320px
-  if (width <= 1024) {
-    return {
-      top: 70,
-      bottom: 100,
-      left: 310,
-      right: 330,
-    };
-  }
-
-  // Small desktop (1024px - 1366px): left panel 350px, right panel 380px
-  if (width <= 1366) {
-    return {
-      top: 75,
-      bottom: 110,
-      left: 370,
-      right: 400,
-    };
-  }
-
-  // Desktop (1440px):
-  if (width <= 1600) {
-    return {
-      top: 80,
-      bottom: 120,
-      left: 380,
-      right: 420,
-    };
-  }
-
-  // Large desktop (1920px+):
   return {
-    top: 90,
-    bottom: 130,
-    left: 420,
-    right: 450,
+    top: 32,
+    bottom: 32,
+    left: isLeftOpen ? 400 : 32,
+    right: isRightOpen ? 420 : 32,
   };
 }
 
@@ -108,15 +178,100 @@ export default function MapView({
   isLoadingHeatmap = false,
   heatmapError = null,
   onRetryHeatmap,
-  is3D = true,
+  is3D = false,
   onToggle3D,
-  isLeftCollapsed = false,
-  isRightCollapsed = false,
+  isLeftDockOpen = true,
+  isRightDockOpen = false,
+  theme = 'dark',
+  isAttributionOpen = false,
+  onToggleAttribution,
+  isRailOpen = false,
+  isRailPinned = false,
+  onCloseRail,
+  units = 'imperial',
+  focusedStop = null,
+  onSelectStop,
 }) {
+
   const mapRef = useRef(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [cursor, setCursor] = useState('auto');
   const [activePopup, setActivePopup] = useState(null);
+  const [internalAttributionOpen, setInternalAttributionOpen] = useState(false);
+
+  // Selected route object and key stops for timeline and interactive markers
+  const selectedRouteObj = useMemo(() => {
+    if (!routes || routes.length === 0) return null;
+    return routes.find((r) => r.id === selectedRouteId) || routes[0];
+  }, [routes, selectedRouteId]);
+
+  const keyStops = useMemo(() => {
+    if (!selectedRouteObj || !Array.isArray(selectedRouteObj.checkpoints)) return [];
+    return selectedRouteObj.checkpoints.filter((cp) => cp.is_key_stop);
+  }, [selectedRouteObj]);
+
+  // Fly to focused stop when selected from timeline
+  useEffect(() => {
+    if (focusedStop && mapRef.current) {
+      mapRef.current.flyTo({
+        center: [focusedStop.lng, focusedStop.lat],
+        zoom: Math.max(mapRef.current.getZoom() || 6, 8.5),
+        essential: true,
+        duration: 1200,
+      });
+      setActivePopup({
+        lng: focusedStop.lng,
+        lat: focusedStop.lat,
+        properties: {
+          mile: focusedStop.mile,
+          risk_level: focusedStop.risk?.level ?? 0,
+          risk_label: focusedStop.risk?.label || 'Low',
+          eta: focusedStop.eta,
+          name: focusedStop.name,
+          wind_mph: focusedStop.weather?.wind_mph ?? null,
+          gust_mph: focusedStop.weather?.gust_mph ?? null,
+          rain_in_hr: focusedStop.weather?.rain_in_hr ?? null,
+          snow_in_hr: focusedStop.weather?.snow_in_hr ?? null,
+          temp_f: focusedStop.weather?.temp_f ?? null,
+          humidity_pct: focusedStop.weather?.humidity_pct ?? null,
+          condition: focusedStop.weather?.condition ?? null,
+          advisory: focusedStop.advisory,
+          drivers: Array.isArray(focusedStop.risk?.drivers)
+            ? focusedStop.risk.drivers.join(', ')
+            : focusedStop.risk?.drivers || '',
+          load_rule: focusedStop.risk?.load_rule,
+        },
+      });
+    }
+  }, [focusedStop]);
+
+  // Map style mode: 'satellite' | 'standard'
+  const [mapStyleKey, setMapStyleKey] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('stormlane-map-style');
+      return saved === 'standard' ? 'standard' : 'satellite';
+    } catch {
+      return 'satellite';
+    }
+  });
+
+  const effectiveAttributionOpen = onToggleAttribution ? isAttributionOpen : internalAttributionOpen;
+  const setAttribution = onToggleAttribution || setInternalAttributionOpen;
+
+  const handleSelectMapStyle = (styleKey) => {
+    setMapStyleKey(styleKey);
+    try {
+      sessionStorage.setItem('stormlane-map-style', styleKey);
+    } catch {}
+  };
+
+  // Determine active MapLibre style JSON
+  const currentMapStyle = useMemo(() => {
+    if (mapStyleKey === 'satellite') {
+      return SATELLITE_STYLE;
+    }
+    return theme === 'light' ? OPENFREEMAP_BRIGHT_STYLE : STANDARD_DARK_STYLE;
+  }, [mapStyleKey, theme]);
 
   // Mutable features array reference for zero-re-render slider updates
   const heatmapFeaturesRef = useRef([]);
@@ -130,7 +285,6 @@ export default function MapView({
     let pointCount = 0;
 
     routes.forEach((r) => {
-      // Coordinates can be directly in r.geometry (array of [lng, lat]) or r.geometry.coordinates
       const coords = Array.isArray(r.geometry)
         ? r.geometry
         : (r.geometry && Array.isArray(r.geometry.coordinates) ? r.geometry.coordinates : []);
@@ -148,7 +302,6 @@ export default function MapView({
         }
       });
 
-      // Also incorporate checkpoints if any
       if (r.checkpoints && Array.isArray(r.checkpoints)) {
         r.checkpoints.forEach((cp) => {
           if (typeof cp.lng === 'number' && typeof cp.lat === 'number') {
@@ -165,28 +318,28 @@ export default function MapView({
     if (pointCount === 0) return;
 
     const bounds = [[minLng, minLat], [maxLng, maxLat]];
-    const padding = getMapPadding();
+    const padding = getMapPadding(isLeftDockOpen, isRightDockOpen);
 
     try {
       const map = mapRef.current.getMap ? mapRef.current.getMap() : mapRef.current;
       if (map && map.fitBounds) {
         map.fitBounds(bounds, {
           padding,
-          pitch: is3D ? 45 : 0,
-          duration: 1200,
+          pitch: is3D ? 50 : 0,
+          duration: 1400,
           maxZoom: 11,
         });
       }
     } catch (err) {
       console.warn('fitBounds error:', err);
     }
-  }, [routes, is3D]);
+  }, [routes, is3D, isLeftDockOpen, isRightDockOpen]);
 
   // Trigger fit bounds on routes change, 3D toggle, or map load
   useEffect(() => {
     const timer = setTimeout(() => {
       fitRoutesToBounds();
-    }, 120);
+    }, 150);
     return () => clearTimeout(timer);
   }, [fitRoutesToBounds, isMapLoaded]);
 
@@ -202,6 +355,77 @@ export default function MapView({
       // ignore
     }
   }, [is3D]);
+
+  // Handle container resizing to ensure canvas matches exactly and centers
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current.getMap ? mapRef.current.getMap() : mapRef.current;
+    if (!map) return;
+
+    const container = map.getContainer ? map.getContainer() : null;
+    if (!container) return;
+
+    const ro = new ResizeObserver(() => {
+      map.resize();
+    });
+    ro.observe(container);
+
+    return () => ro.disconnect();
+  }, [isMapLoaded]);
+
+  // Trigger map.resize() on dock transitions
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const map = mapRef.current?.getMap ? mapRef.current.getMap() : mapRef.current;
+      map?.resize();
+    }, 240);
+    return () => clearTimeout(timer);
+  }, [isLeftDockOpen, isRightDockOpen]);
+
+  // Idle Globe Rotation before any routes are loaded
+  useEffect(() => {
+    if (routes && routes.length > 0) return;
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    let animId;
+    let stopped = false;
+    const map = mapRef.current?.getMap ? mapRef.current.getMap() : mapRef.current;
+    if (!map) return;
+
+    const stopRotation = () => {
+      stopped = true;
+      cancelAnimationFrame(animId);
+    };
+
+    map.on('mousedown', stopRotation);
+    map.on('dragstart', stopRotation);
+    map.on('wheel', stopRotation);
+    map.on('touchstart', stopRotation);
+
+    let lastTime = performance.now();
+    const spinGlobe = (now) => {
+      if (stopped || !mapRef.current) return;
+      const dt = (now - lastTime) / 1000;
+      lastTime = now;
+      try {
+        const center = map.getCenter();
+        map.setCenter([center.lng - (3 * dt), 38]);
+      } catch {}
+      animId = requestAnimationFrame(spinGlobe);
+    };
+
+    animId = requestAnimationFrame(spinGlobe);
+
+    return () => {
+      cancelAnimationFrame(animId);
+      if (map) {
+        map.off('mousedown', stopRotation);
+        map.off('dragstart', stopRotation);
+        map.off('wheel', stopRotation);
+        map.off('touchstart', stopRotation);
+      }
+    };
+  }, [routes, isMapLoaded]);
 
   // Build initial GeoJSON representation when heatmapData changes
   const initialHeatmapGeoJson = useMemo(() => {
@@ -292,7 +516,7 @@ export default function MapView({
             is_recommended: Boolean(r.recommended),
             color: palette.stroke,
             line_width: isSelected ? 6.5 : (r.recommended ? 4.5 : 3.5),
-            line_opacity: isSelected ? 1.0 : (selectedRouteId ? 0.35 : 0.8),
+            line_opacity: isSelected ? 1.0 : (selectedRouteId ? 0.45 : 0.85),
           },
           geometry: {
             type: 'LineString',
@@ -326,11 +550,13 @@ export default function MapView({
           risk_level: cp.risk ? cp.risk.level : 0,
           risk_label: cp.risk ? cp.risk.label : 'Low',
           drivers: cp.risk && cp.risk.drivers && cp.risk.drivers.length ? cp.risk.drivers.join(', ') : 'None',
-          load_rule: cp.risk && cp.risk.load_rule ? cp.risk.load_rule : '',
-          wind_mph: cp.weather ? cp.weather.wind_mph : 0,
-          gust_mph: cp.weather ? cp.weather.gust_mph : 0,
-          rain_in_hr: cp.weather ? cp.weather.rain_in_hr : 0,
-          snow_in_hr: cp.weather ? cp.weather.snow_in_hr : 0,
+          wind_mph: cp.weather ? cp.weather.wind_mph : null,
+          gust_mph: cp.weather ? cp.weather.gust_mph : null,
+          rain_in_hr: cp.weather ? cp.weather.rain_in_hr : null,
+          snow_in_hr: cp.weather ? cp.weather.snow_in_hr : null,
+          temp_f: cp.weather ? cp.weather.temp_f : null,
+          humidity_pct: cp.weather ? cp.weather.humidity_pct : null,
+          condition: cp.weather ? cp.weather.condition : null,
         },
       })),
     };
@@ -366,32 +592,23 @@ export default function MapView({
 
   return (
     <div className="map-view-container">
-      {/* 0-48h Forecast Slider & Heatmap Controls */}
-      <ForecastSlider
-        startTimeIso={heatmapData?.start_time}
-        hoursCount={heatmapData?.hours || 49}
-        onHourChange={handleHourChange}
-        showHeatmap={showHeatmap}
-        onToggleHeatmap={onToggleHeatmap}
-        isLoadingHeatmap={isLoadingHeatmap}
-        heatmapError={heatmapError}
-        onRetryHeatmap={onRetryHeatmap}
-        isLeftCollapsed={isLeftCollapsed}
-        isRightCollapsed={isRightCollapsed}
-      />
-
       <div className="map-wrapper" id="map-container">
         <Map
           ref={mapRef}
           mapLib={maplibregl}
           cursor={cursor}
+          projection="globe"
+          renderWorldCopies={false}
+          minZoom={1.2}
+          maxPitch={70}
           initialViewState={{
-            longitude: -95.7129,
-            latitude: 37.0902,
-            zoom: 3.8,
+            longitude: -98,
+            latitude: 38,
+            zoom: 1.9,
+            pitch: is3D ? 50 : 0,
           }}
           style={{ width: '100%', height: '100%' }}
-          mapStyle={CARTO_DARK_STYLE}
+          mapStyle={currentMapStyle}
           interactiveLayerIds={['routes-layer', 'checkpoints-layer']}
           onClick={handleMapClick}
           onMouseEnter={onMouseEnter}
@@ -399,31 +616,13 @@ export default function MapView({
           attributionControl={false}
           onLoad={() => setIsMapLoaded(true)}
         >
-          <AttributionControl
-            compact={true}
-            position="top-right"
-            customAttribution="Open-Meteo | © OpenStreetMap contributors | CARTO | TomTom"
-          />
-          <div className="map-custom-controls">
-            <button
-              type="button"
-              className={`btn-map-3d ${is3D ? 'active' : ''}`}
-              onClick={onToggle3D}
-              id="toggle-3d-btn"
-              title={is3D ? 'Switch to 2D Top-Down View' : 'Switch to 3D Angled Perspective'}
-            >
-              <span className="dimension-tag">{is3D ? '3D' : '2D'}</span>
-            </button>
-          </div>
-          <NavigationControl position="top-right" />
-
-          {/* Corridor Heatmap Layer (smooth cloud rendered below routes and checkpoints) */}
+          {/* Corridor Heatmap Layer */}
           {initialHeatmapGeoJson && (
             <Source id="heatmap-source" type="geojson" data={initialHeatmapGeoJson}>
               <Layer
                 id="heatmap-glow-layer"
                 type="heatmap"
-                beforeId={routes && routes.length > 0 ? 'routes-glow-layer' : undefined}
+                beforeId={routes && routes.length > 0 ? 'routes-casing-layer' : undefined}
                 paint={{
                   'heatmap-weight': [
                     'interpolate',
@@ -449,10 +648,10 @@ export default function MapView({
                     ['linear'],
                     ['heatmap-density'],
                     0, 'rgba(0, 0, 0, 0)',
-                    0.2, 'rgba(250, 204, 21, 0.45)', // light yellow
-                    0.4, '#eab308',                  // golden yellow
-                    0.7, '#f97316',                  // vibrant orange
-                    1.0, '#ef4444',                  // strong red
+                    0.2, 'rgba(250, 204, 21, 0.45)',
+                    0.4, '#eab308',
+                    0.7, '#f97316',
+                    1.0, '#ef4444',
                   ],
                   'heatmap-radius': [
                     'interpolate',
@@ -463,15 +662,30 @@ export default function MapView({
                     7, 95,
                     10, 150,
                   ],
-                  'heatmap-opacity': showHeatmap ? 0.6 : 0,
+                  'heatmap-opacity': showHeatmap ? 0.65 : 0,
                 }}
               />
             </Source>
           )}
 
-          {/* Routes Lines Layer with Recommended Glow */}
+          {/* Routes Lines Layer with Casing for High Contrast on Satellite */}
           {routesGeoJson && routesGeoJson.features.length > 0 && (
             <Source id="routes-source" type="geojson" data={routesGeoJson}>
+              {/* Dark casing under route lines */}
+              <Layer
+                id="routes-casing-layer"
+                type="line"
+                paint={{
+                  'line-color': '#000000',
+                  'line-width': ['+', ['get', 'line_width'], 3],
+                  'line-opacity': 0.6,
+                }}
+                layout={{
+                  'line-cap': 'round',
+                  'line-join': 'round',
+                }}
+              />
+              {/* Outer recommended route glow */}
               <Layer
                 id="routes-glow-layer"
                 type="line"
@@ -487,6 +701,7 @@ export default function MapView({
                   'line-join': 'round',
                 }}
               />
+              {/* Primary route line */}
               <Layer
                 id="routes-layer"
                 type="line"
@@ -503,32 +718,6 @@ export default function MapView({
             </Source>
           )}
 
-          {/* 3D Buildings Extrusion Layer at High Zoom (minzoom 15) */}
-          <Layer
-            id="3d-buildings"
-            source="carto"
-            source-layer="building"
-            type="fill-extrusion"
-            minzoom={15}
-            paint={{
-              'fill-extrusion-color': '#1e293b',
-              'fill-extrusion-height': [
-                'interpolate',
-                ['linear'],
-                ['zoom'],
-                15, 0,
-                16, ['coalesce', ['get', 'render_height'], ['get', 'height'], 20],
-              ],
-              'fill-extrusion-base': [
-                'interpolate',
-                ['linear'],
-                ['zoom'],
-                15, 0,
-                16, ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
-              ],
-              'fill-extrusion-opacity': 0.65,
-            }}
-          />
 
           {/* Checkpoints Circle Layer */}
           {checkpointsGeoJson && checkpointsGeoJson.features.length > 0 && (
@@ -595,6 +784,60 @@ export default function MapView({
             </Source>
           )}
 
+          {/* Key Stop Round Badges with Weather Icon + Temp + Risk Ring */}
+          {keyStops.map((stop, idx) => {
+            const isFocused = focusedStop?.mile === stop.mile;
+            const rLvl = stop.risk?.level ?? 0;
+            const ringColor = (getRiskBadgeColor(rLvl) || {}).border || '#10b981';
+            const iconName = getWeatherIconName(stop.weather?.weather_code);
+            const tempVal = convertTemp(stop.weather?.temp_f ?? 65, units);
+
+            return (
+              <Marker
+                key={`key-stop-marker-${stop.mile}-${idx}`}
+                longitude={stop.lng}
+                latitude={stop.lat}
+                anchor="center"
+                onClick={(e) => {
+                  e.originalEvent?.stopPropagation();
+                  onSelectStop && onSelectStop(stop);
+                  setActivePopup({
+                    lng: stop.lng,
+                    lat: stop.lat,
+                    properties: {
+                      mile: stop.mile,
+                      risk_level: rLvl,
+                      risk_label: stop.risk?.label || 'Low',
+                      eta: stop.eta,
+                      name: stop.name,
+                      wind_mph: stop.weather?.wind_mph ?? 0,
+                      gust_mph: stop.weather?.gust_mph ?? 0,
+                      rain_in_hr: stop.weather?.rain_in_hr ?? 0,
+                      snow_in_hr: stop.weather?.snow_in_hr ?? 0,
+                      temp_f: stop.weather?.temp_f ?? 65,
+                      advisory: stop.advisory,
+                      drivers: Array.isArray(stop.risk?.drivers)
+                        ? stop.risk.drivers.join(', ')
+                        : stop.risk?.drivers || '',
+                      load_rule: stop.risk?.load_rule,
+                    },
+                  });
+                }}
+              >
+                <div
+                  className={`key-stop-badge ${isFocused ? 'focused' : ''}`}
+                  style={{ borderColor: ringColor }}
+                  title={`${stop.name || `Mile ${stop.mile}`}: ${tempVal}°, ${stop.risk?.label || 'Low'} Risk`}
+                >
+                  <span className="key-stop-icon">
+                    <Icon name={iconName} size={13} />
+                  </span>
+                  <span className="key-stop-temp">{tempVal}°</span>
+                </div>
+              </Marker>
+            );
+          })}
+
           {/* Checkpoint Detail Popup */}
           {activePopup && (
             <Popup
@@ -607,7 +850,11 @@ export default function MapView({
             >
               <div className="popup-card">
                 <div className="popup-header">
-                  <span className="popup-title">Mile {Number(activePopup.properties.mile).toFixed(1)}</span>
+                  <span className="popup-title">
+                    {activePopup.properties.name
+                      ? `${activePopup.properties.name} (${formatDistance(Number(activePopup.properties.mile), units)})`
+                      : `Mile ${formatDistance(Number(activePopup.properties.mile), units)}`}
+                  </span>
                   {(() => {
                     const badge = getRiskBadgeColor(Number(activePopup.properties.risk_level));
                     return (
@@ -627,35 +874,48 @@ export default function MapView({
 
                 <div className="popup-eta">
                   <span className="popup-meta-label">ETA:</span> {formatEta(activePopup.properties.eta)}
+                  <span style={{ marginLeft: 8, fontWeight: 700, color: 'var(--text)' }}>
+                    • {activePopup.properties.temp_f != null ? formatTemp(activePopup.properties.temp_f, units) : 'N/A'}
+                    {activePopup.properties.condition ? ` (${activePopup.properties.condition})` : ''}
+                  </span>
                 </div>
+
+                {activePopup.properties.advisory && (
+                  <div className="popup-advisory-box">
+                    <span className="advisory-icon"><Icon name="info" size={13} /></span>
+                    <span className="advisory-text">{activePopup.properties.advisory}</span>
+                  </div>
+                )}
 
                 <div className="popup-grid">
                   <div className="popup-stat">
                     <span className="popup-stat-label">Sustained Wind</span>
-                    <span className="popup-stat-value">{Number(activePopup.properties.wind_mph).toFixed(1)} mph</span>
+                    <span className="popup-stat-value">{activePopup.properties.wind_mph != null ? formatSpeed(Number(activePopup.properties.wind_mph), units) : 'N/A'}</span>
                   </div>
                   <div className="popup-stat">
                     <span className="popup-stat-label">Wind Gusts</span>
-                    <span className="popup-stat-value">{Number(activePopup.properties.gust_mph).toFixed(1)} mph</span>
+                    <span className="popup-stat-value">{activePopup.properties.gust_mph != null ? formatSpeed(Number(activePopup.properties.gust_mph), units) : 'N/A'}</span>
                   </div>
                   <div className="popup-stat">
-                    <span className="popup-stat-label">Rain Rate</span>
-                    <span className="popup-stat-value">{Number(activePopup.properties.rain_in_hr).toFixed(2)} in/hr</span>
+                    <span className="popup-stat-label">Precip Rate</span>
+                    <span className="popup-stat-value">{activePopup.properties.rain_in_hr != null ? `${formatPrecip(Number(activePopup.properties.rain_in_hr), units)}/hr` : 'N/A'}</span>
                   </div>
                   <div className="popup-stat">
-                    <span className="popup-stat-label">Snow Rate</span>
-                    <span className="popup-stat-value">{Number(activePopup.properties.snow_in_hr).toFixed(2)} in/hr</span>
+                    <span className="popup-stat-label">Humidity</span>
+                    <span className="popup-stat-value">{activePopup.properties.humidity_pct != null ? `${activePopup.properties.humidity_pct}%` : 'N/A'}</span>
                   </div>
                 </div>
 
-                <div className="popup-drivers">
-                  <span className="popup-meta-label">Primary Driver(s):</span>{' '}
-                  <span className="popup-drivers-text">{activePopup.properties.drivers}</span>
-                </div>
+                {activePopup.properties.drivers && (
+                  <div className="popup-drivers">
+                    <span className="popup-meta-label">Primary Driver(s):</span>{' '}
+                    <span className="popup-drivers-text">{activePopup.properties.drivers}</span>
+                  </div>
+                )}
 
                 {activePopup.properties.load_rule && (
                   <div className="popup-load-rule">
-                    <span className="load-rule-icon">⚠</span>
+                    <span className="load-rule-icon"><Icon name="alert-triangle" size={13} /></span>
                     <span>{activePopup.properties.load_rule}</span>
                   </div>
                 )}
@@ -664,16 +924,178 @@ export default function MapView({
           )}
         </Map>
 
-        <RiskLegend />
+        {/* Step 3: Isolated Scrim over map canvas only (map < scrim < legend/controls/docks < rail) */}
+        {isRailOpen && !isRailPinned && (
+          <div
+            className="map-canvas-scrim"
+            id="map-canvas-scrim"
+            onClick={onCloseRail}
+            aria-label="Close navigation"
+          />
+        )}
 
-        <div className="map-attribution-line" id="map-attribution-line">
-          <span>© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a></span>
-          <span className="sep">•</span>
-          <span><a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a></span>
-          <span className="sep">•</span>
-          <span>Weather: <a href="https://open-meteo.com" target="_blank" rel="noreferrer">Open-Meteo</a></span>
-          <span className="sep">•</span>
-          <span>Routing: <a href="https://developer.tomtom.com" target="_blank" rel="noreferrer">TomTom</a></span>
+        {/* Bottom-Left Legend: Routes + Risk Scale */}
+
+        <RiskLegend isLeftPanelOpen={isLeftDockOpen} />
+
+        {/* Bottom-Center Corridor Weather Heatmap Floating Pill */}
+        <ForecastSlider
+          startTimeIso={heatmapData?.start_time}
+          hoursCount={heatmapData?.hours_count || 49}
+          onHourChange={handleHourChange}
+          showHeatmap={showHeatmap}
+          onToggleHeatmap={onToggleHeatmap}
+          isLoadingHeatmap={isLoadingHeatmap}
+          heatmapError={heatmapError}
+          onRetryHeatmap={onRetryHeatmap}
+          isLeftCollapsed={!isLeftDockOpen}
+          isRightCollapsed={!isRightDockOpen}
+          isLeftDockOpen={isLeftDockOpen}
+          isRightDockOpen={isRightDockOpen}
+        />
+
+        {/* Bottom-Right Single Clean Stack (Map Style + 3D + Zoom + Info) */}
+        <div className={`map-bottom-right-dock ${isRightDockOpen ? 'offset-right-dock-open' : ''}`} id="map-bottom-right-dock">
+          {/* Glass Attribution Popover */}
+          {effectiveAttributionOpen && (
+            <div className="map-attribution-popover" id="map-attribution-popover" role="dialog" aria-label="Map Data Attribution">
+              <div className="attribution-popover-header">
+                <span className="popover-title">Map &amp; Weather Data</span>
+                <button
+                  type="button"
+                  className="icon-btn btn-popover-close"
+                  onClick={() => setAttribution(false)}
+                  aria-label="Close attribution"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+              <div className="attribution-popover-body">
+                <div className="attrib-item">
+                  <span className="attrib-label">Satellite Imagery:</span>{' '}
+                  <span>Esri, Maxar, Earthstar Geographics</span>
+                </div>
+                <div className="attrib-item">
+                  <span className="attrib-label">Base Map &amp; Layers:</span>{' '}
+                  <a href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a>
+                  <span className="sep">•</span>
+                  <a href="https://openmaptiles.org" target="_blank" rel="noreferrer">OpenMapTiles</a>
+                  <span className="sep">•</span>
+                  <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a>
+                  <span className="sep">•</span>
+                  <a href="https://www.esri.com" target="_blank" rel="noreferrer">Esri Reference</a>
+                </div>
+                <div className="attrib-item">
+                  <span className="attrib-label">Weather:</span>{' '}
+                  <a href="https://open-meteo.com" target="_blank" rel="noreferrer">Open-Meteo</a>
+                </div>
+                <div className="attrib-item">
+                  <span className="attrib-label">Commercial Routing:</span>{' '}
+                  <a href="https://developer.tomtom.com" target="_blank" rel="noreferrer">TomTom</a>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Map Style Segmented Control */}
+          <div className="map-style-dock-selector" id="map-style-dock-selector" role="group" aria-label="Map Style Selection">
+            <button
+              type="button"
+              className={`map-style-chip ${mapStyleKey === 'satellite' ? 'active' : ''}`}
+              onClick={() => handleSelectMapStyle('satellite')}
+              title="Satellite Real Imagery"
+              aria-label="Satellite Style"
+            >
+              Satellite
+            </button>
+            <button
+              type="button"
+              className={`map-style-chip ${mapStyleKey === 'standard' ? 'active' : ''}`}
+              onClick={() => handleSelectMapStyle('standard')}
+              title={theme === 'light' ? 'OpenFreeMap Bright Vector Style' : 'Esri Dark Gray Canvas Style'}
+              aria-label="Standard Vector Style"
+            >
+              Standard
+            </button>
+          </div>
+
+          {/* 2D / 3D Perspective Toggle Button */}
+          <button
+            type="button"
+            className={`map-action-btn ${is3D ? 'active' : ''}`}
+            onClick={onToggle3D}
+            id="toggle-3d-btn"
+            title={is3D ? 'Switch to 2D Top-Down View' : 'Switch to 3D Angled Perspective'}
+            aria-label={is3D ? 'Switch to 2D View' : 'Switch to 3D View'}
+          >
+            <span className="dimension-tag">{is3D ? '3D' : '2D'}</span>
+          </button>
+
+          {/* Zoom In, Zoom Out, Reset Compass group */}
+          <div className="maplibregl-ctrl-custom-group">
+            <button
+              type="button"
+              className="map-nav-btn"
+              onClick={() => {
+                const map = mapRef.current?.getMap ? mapRef.current.getMap() : mapRef.current;
+                map?.zoomIn?.();
+              }}
+              title="Zoom in"
+              aria-label="Zoom in"
+              id="map-zoom-in-btn"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="map-nav-btn"
+              onClick={() => {
+                const map = mapRef.current?.getMap ? mapRef.current.getMap() : mapRef.current;
+                map?.zoomOut?.();
+              }}
+              title="Zoom out"
+              aria-label="Zoom out"
+              id="map-zoom-out-btn"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="map-nav-btn"
+              onClick={() => {
+                const map = mapRef.current?.getMap ? mapRef.current.getMap() : mapRef.current;
+                map?.resetNorthPitch?.();
+              }}
+              title="Reset bearing to North"
+              aria-label="Reset North"
+              id="map-reset-north-btn"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polygon points="12 2 19 21 12 17 5 21 12 2" fill="rgba(56, 189, 248, 0.3)" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Info & Attribution Button */}
+          <button
+            type="button"
+            className={`map-action-btn ${effectiveAttributionOpen ? 'active' : ''}`}
+            onClick={() => setAttribution(!effectiveAttributionOpen)}
+            id="map-info-btn"
+            title="Map Info & Credits"
+            aria-label="Map Information and Credits"
+            aria-expanded={effectiveAttributionOpen}
+          >
+            <span className="info-icon" aria-hidden="true">i</span>
+          </button>
         </div>
       </div>
     </div>

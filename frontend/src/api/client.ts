@@ -11,6 +11,22 @@ export const API_BASE_URL: string = (
   'http://localhost:8000'
 ).replace(/\/+$/, '');
 
+export function getClientId(): string {
+  if (typeof window === 'undefined') return 'anonymous';
+  try {
+    let id = localStorage.getItem('stormlane-client-id');
+    if (!id) {
+      id = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `cid-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      localStorage.setItem('stormlane-client-id', id);
+    }
+    return id;
+  } catch {
+    return 'anonymous';
+  }
+}
+
 // Create configured Axios instance
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -21,9 +37,26 @@ export const apiClient = axios.create({
   timeout: 30000,
 });
 
+apiClient.interceptors.request.use((config) => {
+  const url = config.url || '';
+  // Attach X-Client-Id ONLY to /api/trips/ endpoints (recent trips), never to health, geocode, weather, or analyze
+  const isRecentTripsEndpoint = (url === '/api/trips/' || url.startsWith('/api/trips/?') || /^\/api\/trips\/\d+\/?$/.test(url));
+  if (isRecentTripsEndpoint && config.headers) {
+    const cid = getClientId();
+    if (cid) {
+      config.headers['X-Client-Id'] = cid;
+    }
+  }
+  return config;
+});
+
 function extractErrorMessage(data: any, fallbackStatus?: number): string {
   if (!data) {
-    return fallbackStatus ? `Request failed with HTTP ${fallbackStatus}` : 'Request failed';
+    if (fallbackStatus === 500) return 'Server error occurred. Please try again.';
+    if (fallbackStatus === 502 || fallbackStatus === 503 || fallbackStatus === 504) return 'Upstream weather/routing service temporarily unavailable. Please retry.';
+    if (fallbackStatus === 404) return 'Resource not found.';
+    if (fallbackStatus) return `Request failed with HTTP ${fallbackStatus}`;
+    return 'Backend service unavailable. Please check your connection.';
   }
   if (typeof data.error === 'object' && data.error?.message) {
     return data.error.message;
@@ -94,6 +127,7 @@ export async function analyzeTrip(
   body: TripAnalyzeRequest,
   options?: {
     onWakeupHint?: (hint: string) => void;
+    onProgressiveRoutes?: (routesData: TripAnalyzeResponse) => void;
     signal?: AbortSignal;
   }
 ): Promise<TripAnalyzeResponse> {
@@ -105,6 +139,23 @@ export async function analyzeTrip(
     } else {
       options.signal.addEventListener('abort', () => controller.abort(), { once: true });
     }
+  }
+
+  // Progressive Stage 1: Return initial commercial route in <2s, then stream weather
+  if (options?.onProgressiveRoutes) {
+    apiClient
+      .post<TripAnalyzeResponse>('/api/trips/analyze?stage=routes', body, {
+        signal: controller.signal,
+        timeout: 10000,
+      })
+      .then((fastRes) => {
+        if (!controller.signal.aborted && fastRes?.data?.routes?.length) {
+          options.onProgressiveRoutes?.(fastRes.data);
+        }
+      })
+      .catch(() => {
+        // Ignore fast stage errors and await full analysis
+      });
   }
 
   const wakeupTimer = setTimeout(() => {
@@ -156,5 +207,117 @@ export async function getHeatmap(
       throw new Error(extractErrorMessage(err.response?.data, err.response?.status));
     }
     throw err;
+  }
+}
+
+/**
+ * Reverse geocode latitude/longitude to a readable place name.
+ */
+export async function reverseGeocode(
+  lat: number,
+  lon: number,
+  signal?: AbortSignal
+): Promise<{ label: string; lat: number; lng: number }> {
+  try {
+    const res = await apiClient.get('/api/geocode/reverse/', {
+      params: { lat, lon },
+      signal,
+      timeout: 8000,
+    });
+    return res.data;
+  } catch (err: any) {
+    if (axios.isCancel(err) || signal?.aborted) {
+      throw new Error('Reverse geocoding request was cancelled.');
+    }
+    if (axios.isAxiosError(err)) {
+      throw new Error(extractErrorMessage(err.response?.data, err.response?.status));
+    }
+    throw err;
+  }
+}
+
+/**
+ * Fetch structured weather report for origin and optional destination.
+ */
+export async function getWeatherReport(
+  params: { origin_lat: number; origin_lon: number; dest_lat?: number; dest_lon?: number; departure?: string },
+  signal?: AbortSignal
+): Promise<any> {
+  try {
+    const res = await apiClient.get('/api/weather/report/', {
+      params,
+      signal,
+      timeout: 10000,
+    });
+    return res.data;
+  } catch (err: any) {
+    if (axios.isCancel(err) || signal?.aborted) {
+      throw new Error('Weather report request was cancelled.');
+    }
+    if (axios.isAxiosError(err)) {
+      throw new Error(extractErrorMessage(err.response?.data, err.response?.status));
+    }
+    throw err;
+  }
+}
+
+/**
+ * Get recent trip searches for current client ID.
+ */
+export async function getRecentTrips(limit = 10, signal?: AbortSignal): Promise<any[]> {
+  try {
+    const res = await apiClient.get('/api/trips/', {
+      params: { limit },
+      signal,
+      timeout: 8000,
+    });
+    return Array.isArray(res.data) ? res.data : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Save trip search to recent searches (silent fail on client error).
+ */
+export async function saveRecentTrip(tripData: any, signal?: AbortSignal): Promise<any> {
+  try {
+    const res = await apiClient.post('/api/trips/', tripData, {
+      signal,
+      timeout: 8000,
+    });
+    return res.data;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Delete a single recent trip.
+ */
+export async function deleteRecentTrip(id: number, signal?: AbortSignal): Promise<boolean> {
+  try {
+    await apiClient.delete(`/api/trips/${id}/`, {
+      signal,
+      timeout: 8000,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Clear all recent trips for client.
+ */
+export async function clearRecentTrips(signal?: AbortSignal): Promise<boolean> {
+  try {
+    await apiClient.delete('/api/trips/', {
+      signal,
+      timeout: 8000,
+    });
+    return true;
+  } catch {
+    return false;
   }
 }

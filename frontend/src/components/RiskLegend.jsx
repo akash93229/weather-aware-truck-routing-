@@ -14,9 +14,9 @@ const ROUTE_LEGEND = [
 
 export { RISK_PALETTE, ROUTE_LEGEND };
 
-export default function RiskLegend() {
+export default function RiskLegend({ isLeftPanelOpen = false }) {
   return (
-    <div className="risk-legend" id="risk-legend">
+    <div className={`risk-legend ${isLeftPanelOpen ? 'offset-panel-open' : ''}`} id="risk-legend">
       <div className="legend-group">
         <span className="legend-title">Routes</span>
         <div className="legend-items">

@@ -105,3 +105,22 @@ class TripAnalyzeSerializer(serializers.Serializer):
             raise serializers.ValidationError('Origin and destination cannot be the same location.')
 
         return attrs
+
+
+class TripSearchSerializer(serializers.ModelSerializer):
+    class Meta:
+        from trips.models import TripSearch
+        model = TripSearch
+        fields = [
+            'id',
+            'origin_label',
+            'origin_lat',
+            'origin_lon',
+            'dest_label',
+            'dest_lat',
+            'dest_lon',
+            'departure_at',
+            'max_risk_level',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'created_at']

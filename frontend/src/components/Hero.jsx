@@ -1,4 +1,5 @@
 import Logo from './Logo';
+import { Icon } from '../ui/icons';
 
 export default function Hero({ onPlanTripClick, onClose, isVisible = true }) {
   if (!isVisible) return null;
@@ -14,7 +15,7 @@ export default function Hero({ onPlanTripClick, onClose, isVisible = true }) {
           id="hero-close-btn"
           aria-label="Close overview"
         >
-          ✕
+          <Icon name="close" size={16} />
         </button>
       )}
       <div className="hero-content">
@@ -43,7 +44,7 @@ export default function Hero({ onPlanTripClick, onClose, isVisible = true }) {
 
         <div className="hero-chips-grid">
           <div className="hero-chip" id="chip-routes">
-            <span className="chip-icon">🚚</span>
+            <span className="chip-icon"><Icon name="truck" size={20} /></span>
             <div className="chip-text">
               <strong>3 Distinct Truck Routes</strong>
               <span>Fastest & safer alternatives</span>
@@ -51,7 +52,7 @@ export default function Hero({ onPlanTripClick, onClose, isVisible = true }) {
           </div>
 
           <div className="hero-chip" id="chip-weather">
-            <span className="chip-icon">⏱</span>
+            <span className="chip-icon"><Icon name="clock" size={20} /></span>
             <div className="chip-text">
               <strong>Weather at Exact ETA</strong>
               <span>Per-checkpoint forecast sampling</span>
@@ -59,7 +60,7 @@ export default function Hero({ onPlanTripClick, onClose, isVisible = true }) {
           </div>
 
           <div className="hero-chip" id="chip-heatmap">
-            <span className="chip-icon">🌡</span>
+            <span className="chip-icon"><Icon name="thermometer" size={20} /></span>
             <div className="chip-text">
               <strong>48-Hour Corridor Heatmap</strong>
               <span>Smooth zero-network time slider</span>
@@ -70,3 +71,4 @@ export default function Hero({ onPlanTripClick, onClose, isVisible = true }) {
     </section>
   );
 }
+

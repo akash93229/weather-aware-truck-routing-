@@ -14,16 +14,23 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 
 # Secret key configuration
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY') or os.getenv('SECRET_KEY')
 if not SECRET_KEY:
-    raise ImproperlyConfigured('DJANGO_SECRET_KEY environment variable is required.')
+    raise ImproperlyConfigured('DJANGO_SECRET_KEY or SECRET_KEY environment variable is required.')
 
 # Debug mode configuration (default False)
-DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 'yes')
+DEBUG = os.getenv('DJANGO_DEBUG', os.getenv('DEBUG', 'False')).lower() in ('true', '1', 'yes')
 
 # Allowed hosts
-allowed_hosts_str = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1')
-ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_str.split(',') if host.strip()]
+allowed_hosts_str = os.getenv('DJANGO_ALLOWED_HOSTS') or os.getenv('ALLOWED_HOSTS', '')
+parsed_hosts = [host.strip() for host in allowed_hosts_str.split(',') if host.strip()]
+for default_host in ['localhost', '127.0.0.1', 'testserver', '.onrender.com', '.vercel.app']:
+    if default_host not in parsed_hosts:
+        parsed_hosts.append(default_host)
+ALLOWED_HOSTS = parsed_hosts
+
+# Security headers for reverse proxies (Render / HTTPS)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Application definition
 INSTALLED_APPS = [
@@ -137,8 +144,16 @@ SPECTACULAR_SETTINGS = {
 }
 
 # CORS configuration
+from corsheaders.defaults import default_headers
+
 cors_origins_str = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173')
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_str.split(',') if origin.strip()]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r'^https:\/\/.*\.vercel\.app$',
+]
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'x-client-id',
+]
 
 # External Routing APIs configuration
 HERE_API_KEY = os.getenv('HERE_API_KEY', '')

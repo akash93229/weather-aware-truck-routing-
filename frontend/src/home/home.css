@@ -1,0 +1,866 @@
+/* ==========================================================================
+   StormLane — Centered Aurora Weather Liquid-Glass Landing Page
+   Scoped strictly under .sl-home in src/home/home.css
+   ========================================================================== */
+
+/* Design Tokens & Reference Scaling (1357 x 871 canvas) */
+.sl-home {
+  --u: min(100vw / 1357, 100dvh / 871);
+  --e-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --e-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --sl-cyan: #38bdf8;
+  --sl-blue: #0ea5e9;
+  --sl-fallback-bg: #04121b;
+  --sl-ink: #ffffff;
+  --sl-ink-dim: rgba(255, 255, 255, 0.92);
+  --sl-ink-muted: rgba(255, 255, 255, 0.80);
+  --sl-ink-subtle: rgba(255, 255, 255, 0.55);
+
+  /* Risk Palette */
+  --risk-low: #10b981;
+  --risk-mod: #0ea5e9;
+  --risk-high: #eab308;
+  --risk-severe: #f97316;
+  --risk-notravel: #ef4444;
+
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  background-color: var(--sl-fallback-bg);
+  color: var(--sl-ink);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  z-index: 100;
+  user-select: none;
+}
+
+@supports not (height: 100dvh) {
+  .sl-home {
+    --u: min(100vw / 1357, 100vh / 871);
+    height: 100vh;
+  }
+}
+
+/* ==========================================================================
+   Full-Bleed Video Background & Readability Overlay
+   Watermark hidden: scaled 1.14 with transform-origin 30% 30% so bottom-right ~8% is cropped
+   ========================================================================== */
+
+.sl-home-video {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 35%;
+  transform: scale(1.14);
+  transform-origin: 30% 30%;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 0.8s var(--e-soft);
+  pointer-events: none;
+}
+
+.sl-home-video.loaded {
+  opacity: 1;
+}
+
+.sl-home-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(4, 16, 24, 0.50) 0%, rgba(4, 16, 24, 0.25) 55%, rgba(4, 16, 24, 0.15) 100%),
+    linear-gradient(180deg, transparent 40%, rgba(4, 16, 24, 0.45) 100%),
+    radial-gradient(ellipse at 100% 100%, rgba(4, 16, 24, 0.70) 0%, transparent 40%);
+}
+
+/* ==========================================================================
+   Liquid Glass & Sheen Primitives
+   ========================================================================== */
+
+.sl-glass-card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.14) 100%);
+  backdrop-filter: blur(calc(20 * var(--u))) saturate(115%);
+  -webkit-backdrop-filter: blur(calc(20 * var(--u))) saturate(115%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: calc(20 * var(--u));
+  box-shadow: 0 calc(12 * var(--u)) calc(30 * var(--u)) rgba(0, 0, 0, 0.22);
+  transition: background 0.22s var(--e-out), transform 0.22s var(--e-out), border-color 0.22s;
+}
+
+.sl-glass-card:hover {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.20) 100%);
+  border-color: rgba(255, 255, 255, 0.28);
+  transform: translateY(calc(-1 * var(--u)));
+}
+
+.sl-glass-chip {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(8 * var(--u));
+  height: calc(36 * var(--u));
+  border-radius: calc(18 * var(--u));
+  padding: 0 calc(16 * var(--u));
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(calc(16 * var(--u))) saturate(115%);
+  -webkit-backdrop-filter: blur(calc(16 * var(--u))) saturate(115%);
+  border: 1px solid rgba(255, 255, 255, 0.20);
+  color: var(--sl-ink);
+  font-size: calc(12.5 * var(--u));
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* Specular Sheen (active on 3 feature cards only at 2.2s) */
+.sl-sheen {
+  position: relative;
+  overflow: hidden;
+}
+
+.sl-sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  width: 38%;
+  background: linear-gradient(100deg, transparent 0%, rgba(255, 255, 255, 0.17) 50%, transparent 100%);
+  transform: skewX(-18deg);
+  animation: sl-sheen 1.15s cubic-bezier(0.22, 0.61, 0.36, 1) 2.2s 1 both;
+}
+
+@keyframes sl-sheen {
+  0% {
+    transform: translate3d(-150%, 0, 0) skewX(-18deg);
+  }
+  100% {
+    transform: translate3d(260%, 0, 0) skewX(-18deg);
+  }
+}
+
+/* ==========================================================================
+   Animation Keyframes
+   ========================================================================== */
+
+@keyframes sl-riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sl-popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes sl-lineUp {
+  from {
+    transform: translateY(115%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes sl-wipeRight {
+  from {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0 round calc(18 * var(--u)));
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0 round calc(18 * var(--u)));
+  }
+}
+
+@keyframes sl-wipeDown {
+  from {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    transform: translateY(0);
+  }
+}
+
+@keyframes sl-fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ==========================================================================
+   Desktop Centered Layout (Edge-Anchored 3 Visual Layers)
+   ========================================================================== */
+
+.sl-home-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+}
+
+/* Layer 1: Header */
+.sl-header {
+  position: absolute;
+  top: calc(22 * var(--u));
+  left: calc(56 * var(--u));
+  right: calc(56 * var(--u));
+  height: calc(52 * var(--u));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 20;
+  animation: sl-riseIn 0.7s var(--e-out) 0.1s both;
+}
+
+.sl-brand {
+  display: flex;
+  align-items: center;
+  gap: calc(14 * var(--u));
+}
+
+.sl-logo-svg {
+  width: calc(38 * var(--u));
+  height: calc(38 * var(--u));
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
+}
+
+.sl-brand-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.sl-brand-name {
+  font-size: calc(20 * var(--u));
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--sl-ink);
+  line-height: 1.1;
+}
+
+.sl-brand-caption {
+  font-size: calc(11 * var(--u));
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--sl-ink-subtle);
+  text-transform: uppercase;
+  margin-top: calc(2 * var(--u));
+}
+
+/* Sound Toggle Button */
+.sl-sound-btn {
+  width: calc(44 * var(--u));
+  height: calc(44 * var(--u));
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(calc(16 * var(--u))) saturate(115%);
+  -webkit-backdrop-filter: blur(calc(16 * var(--u))) saturate(115%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  color: #ffffff;
+  padding: 0;
+  transition: background 0.2s var(--e-out), transform 0.2s var(--e-out), border-color 0.2s;
+  animation: sl-popIn 0.58s var(--e-out) 0.3s both;
+}
+
+.sl-sound-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.45);
+  transform: translateY(calc(-1 * var(--u)));
+}
+
+.sl-sound-btn:focus-visible {
+  outline: calc(2 * var(--u)) solid #ffffff;
+  outline-offset: calc(2 * var(--u));
+}
+
+.sl-sound-icons {
+  position: relative;
+  width: calc(20 * var(--u));
+  height: calc(20 * var(--u));
+}
+
+.sl-sound-icon {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  stroke: #ffffff;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 150ms var(--e-out), transform 150ms var(--e-out);
+  pointer-events: none;
+}
+
+.sl-sound-icon.active {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.sl-sound-tooltip {
+  position: absolute;
+  top: calc(100% + calc(8 * var(--u)));
+  right: 0;
+  background: rgba(4, 16, 24, 0.90);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  font-size: calc(11 * var(--u));
+  font-weight: 500;
+  padding: calc(4 * var(--u)) calc(8 * var(--u));
+  border-radius: calc(6 * var(--u));
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(calc(-4 * var(--u)));
+  transition: opacity 160ms var(--e-out), transform 160ms var(--e-out);
+  z-index: 30;
+}
+
+.sl-sound-btn:hover .sl-sound-tooltip,
+.sl-sound-btn:focus-visible .sl-sound-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Layer 2: Centered Hero Block */
+.sl-hero {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  max-width: calc(760 * var(--u));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  z-index: 15;
+}
+
+.sl-hero-chip {
+  animation: sl-wipeRight 0.8s var(--e-out) 0.4s both;
+  margin-bottom: calc(18 * var(--u));
+}
+
+.sl-h1 {
+  font-family: 'Inter Tight', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 500;
+  font-size: calc(76 * var(--u));
+  line-height: calc(88 * var(--u));
+  letter-spacing: calc(-1 * var(--u));
+  color: var(--sl-ink);
+  margin: 0 0 calc(18 * var(--u)) 0;
+  text-wrap: balance;
+}
+
+.sl-line-mask {
+  display: block;
+  overflow: hidden;
+}
+
+.sl-line {
+  display: inline-block;
+  animation: sl-lineUp 1.05s var(--e-out) both;
+}
+
+.sl-line-1 {
+  animation-delay: 0.5s;
+}
+
+.sl-line-2 {
+  animation-delay: 0.62s;
+}
+
+.sl-blurb {
+  max-width: calc(520 * var(--u));
+  font-size: calc(16 * var(--u));
+  line-height: calc(26 * var(--u));
+  font-weight: 500;
+  color: var(--sl-ink-dim);
+  margin: 0 0 calc(28 * var(--u)) 0;
+  animation: sl-wipeDown 0.9s var(--e-out) 0.85s both;
+  text-wrap: balance;
+}
+
+.sl-hero-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(14 * var(--u));
+}
+
+.sl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(10 * var(--u));
+  height: calc(48 * var(--u));
+  border-radius: calc(24 * var(--u));
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.22s var(--e-out), transform 0.22s var(--e-out), border-color 0.22s, box-shadow 0.22s;
+  user-select: none;
+}
+
+.sl-btn:focus-visible {
+  outline: calc(2 * var(--u)) solid #ffffff;
+  outline-offset: calc(2 * var(--u));
+}
+
+.sl-btn-primary {
+  padding: 0 calc(26 * var(--u));
+  font-size: calc(15 * var(--u));
+  font-weight: 600;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.42) 0%, rgba(14, 165, 233, 0.30) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.65);
+  color: #ffffff;
+  box-shadow: 0 calc(4 * var(--u)) calc(20 * var(--u)) rgba(56, 189, 248, 0.22);
+  animation: sl-riseIn 0.6s var(--e-out) 1.05s both;
+}
+
+.sl-btn-primary:hover {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.55) 0%, rgba(14, 165, 233, 0.42) 100%);
+  border-color: rgba(56, 189, 248, 0.9);
+  transform: translateY(calc(-1 * var(--u)));
+  box-shadow: 0 calc(6 * var(--u)) calc(26 * var(--u)) rgba(56, 189, 248, 0.35);
+}
+
+.sl-btn-primary:active {
+  transform: translateY(0);
+}
+
+.sl-btn-arrow {
+  width: calc(16 * var(--u));
+  height: calc(16 * var(--u));
+  transition: transform 0.2s var(--e-out);
+}
+
+.sl-btn-primary:hover .sl-btn-arrow {
+  transform: translateX(calc(3 * var(--u)));
+}
+
+.sl-btn-ghost {
+  padding: 0 calc(22 * var(--u));
+  font-size: calc(14.5 * var(--u));
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(calc(16 * var(--u))) saturate(115%);
+  -webkit-backdrop-filter: blur(calc(16 * var(--u))) saturate(115%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: var(--sl-ink);
+  animation: sl-riseIn 0.6s var(--e-out) 1.12s both;
+}
+
+.sl-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.20);
+  border-color: rgba(255, 255, 255, 0.40);
+  transform: translateY(calc(-1 * var(--u)));
+}
+
+.sl-btn-ghost:active {
+  transform: translateY(0);
+}
+
+/* Layer 3: Bottom Information Group */
+
+/* Feature Row (3 compact equal cards) */
+.sl-features {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(118 * var(--u));
+  width: min(calc(980 * var(--u)), calc(100% - calc(112 * var(--u))));
+  z-index: 15;
+}
+
+.sl-features-row {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: calc(18 * var(--u));
+  width: 100%;
+}
+
+.sl-feature-card {
+  min-height: calc(104 * var(--u));
+  height: calc(104 * var(--u));
+  padding: calc(16 * var(--u)) calc(18 * var(--u));
+  display: flex;
+  align-items: center;
+  gap: calc(14 * var(--u));
+  box-sizing: border-box;
+}
+
+.sl-feature-card:nth-child(1) { animation: sl-riseIn 0.7s var(--e-out) 1.30s both; }
+.sl-feature-card:nth-child(2) { animation: sl-riseIn 0.7s var(--e-out) 1.40s both; }
+.sl-feature-card:nth-child(3) { animation: sl-riseIn 0.7s var(--e-out) 1.50s both; }
+
+.sl-feature-icon-wrap {
+  width: calc(40 * var(--u));
+  height: calc(40 * var(--u));
+  border-radius: calc(12 * var(--u));
+  background: rgba(255, 255, 255, 0.10);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--sl-cyan);
+}
+
+.sl-feature-icon {
+  width: calc(20 * var(--u));
+  height: calc(20 * var(--u));
+}
+
+.sl-feature-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  text-align: left;
+}
+
+.sl-feature-title {
+  font-size: calc(15 * var(--u));
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1.25;
+  margin: 0 0 calc(3 * var(--u)) 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sl-feature-sub {
+  font-size: calc(13 * var(--u));
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.80);
+  line-height: 1.35;
+  margin: 0;
+}
+
+/* Risk Scale Pill (Single quiet element) */
+.sl-risk-section {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(64 * var(--u));
+  z-index: 15;
+  animation: sl-riseIn 0.7s var(--e-out) 1.65s both;
+}
+
+.sl-risk-pill {
+  height: calc(34 * var(--u));
+  border-radius: calc(17 * var(--u));
+  padding: 0 calc(18 * var(--u));
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(calc(16 * var(--u))) saturate(115%);
+  -webkit-backdrop-filter: blur(calc(16 * var(--u))) saturate(115%);
+  display: inline-flex;
+  align-items: center;
+  gap: calc(16 * var(--u));
+  white-space: nowrap;
+  box-shadow: 0 calc(6 * var(--u)) calc(18 * var(--u)) rgba(0, 0, 0, 0.18);
+}
+
+.sl-risk-pill-caption {
+  font-size: calc(10.5 * var(--u));
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.50);
+  text-transform: uppercase;
+  margin-right: calc(2 * var(--u));
+}
+
+.sl-risk-item {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(6 * var(--u));
+  font-size: calc(12 * var(--u));
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.90);
+}
+
+.sl-risk-dot {
+  width: calc(7 * var(--u));
+  height: calc(7 * var(--u));
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Footer Credit Line */
+.sl-footer {
+  position: absolute;
+  bottom: calc(22 * var(--u));
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: calc(11 * var(--u));
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 0.04em;
+  z-index: 10;
+  pointer-events: none;
+  animation: sl-fadeIn 0.7s var(--e-out) 1.80s both;
+}
+
+/* ==========================================================================
+   Short Viewport Safeguard (Height < 760px on Desktop)
+   Prevents hero and bottom features from overlapping
+   ========================================================================== */
+
+@media (min-width: 861px) and (max-height: 760px) {
+  .sl-hero {
+    top: 35%;
+  }
+
+  .sl-h1 {
+    font-size: calc(64 * var(--u));
+    line-height: calc(74 * var(--u));
+    margin-bottom: calc(12 * var(--u));
+  }
+
+  .sl-blurb {
+    font-size: calc(14.5 * var(--u));
+    line-height: calc(22 * var(--u));
+    margin-bottom: calc(20 * var(--u));
+  }
+
+  .sl-features {
+    bottom: calc(98 * var(--u));
+  }
+
+  .sl-feature-card {
+    min-height: calc(92 * var(--u));
+    height: calc(92 * var(--u));
+    padding: calc(12 * var(--u)) calc(16 * var(--u));
+  }
+
+  .sl-risk-section {
+    bottom: calc(52 * var(--u));
+  }
+
+  .sl-footer {
+    bottom: calc(16 * var(--u));
+  }
+}
+
+/* ==========================================================================
+   Responsive Adaptations (Tablet & Mobile: <= 860px)
+   ========================================================================== */
+
+@media (max-width: 860px) {
+  .sl-home {
+    --u: min(100vw / 430, 1.22px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sl-glass-card,
+  .sl-glass-chip,
+  .sl-btn-ghost,
+  .sl-sound-btn,
+  .sl-risk-pill {
+    backdrop-filter: blur(calc(14 * var(--u))) saturate(115%);
+    -webkit-backdrop-filter: blur(calc(14 * var(--u))) saturate(115%);
+  }
+
+  .sl-home-stage {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: calc(20 * var(--u)) calc(20 * var(--u)) calc(36 * var(--u));
+    gap: calc(28 * var(--u));
+    height: auto;
+    min-height: 100%;
+  }
+
+  /* Header in flow */
+  .sl-header {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    height: auto;
+    width: 100%;
+    padding-bottom: calc(6 * var(--u));
+  }
+
+  .sl-brand-name {
+    font-size: calc(19 * var(--u));
+  }
+
+  .sl-brand-caption {
+    font-size: calc(9.5 * var(--u));
+  }
+
+  /* Hero in flow */
+  .sl-hero {
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .sl-h1 {
+    font-size: calc(44 * var(--u));
+    line-height: calc(52 * var(--u));
+    margin-bottom: calc(16 * var(--u));
+  }
+
+  .sl-blurb {
+    width: 100%;
+    max-width: 100%;
+    font-size: calc(14.5 * var(--u));
+    line-height: calc(22 * var(--u));
+    margin-bottom: calc(24 * var(--u));
+  }
+
+  .sl-hero-buttons {
+    flex-direction: column;
+    width: 100%;
+    max-width: calc(320 * var(--u));
+    gap: calc(12 * var(--u));
+  }
+
+  .sl-btn {
+    width: 100%;
+    height: calc(50 * var(--u));
+    font-size: calc(14 * var(--u));
+  }
+
+  /* Features in flow (stacked) */
+  .sl-features {
+    position: relative;
+    bottom: auto;
+    left: auto;
+    transform: none;
+    width: 100%;
+  }
+
+  .sl-features-row {
+    grid-template-columns: 1fr;
+    gap: calc(12 * var(--u));
+  }
+
+  .sl-feature-card {
+    height: auto;
+    min-height: calc(82 * var(--u));
+    padding: calc(14 * var(--u)) calc(16 * var(--u));
+  }
+
+  /* Risk Scale in flow */
+  .sl-risk-section {
+    position: relative;
+    bottom: auto;
+    left: auto;
+    transform: none;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+
+  .sl-risk-pill {
+    height: auto;
+    min-height: calc(36 * var(--u));
+    padding: calc(8 * var(--u)) calc(14 * var(--u));
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: calc(10 * var(--u)) calc(14 * var(--u));
+    white-space: normal;
+  }
+
+  /* Footer in flow */
+  .sl-footer {
+    position: relative;
+    bottom: auto;
+    margin-top: calc(4 * var(--u));
+    font-size: calc(10.5 * var(--u));
+    line-height: 1.5;
+    padding: 0 calc(10 * var(--u));
+  }
+}
+
+@media (max-width: 420px) {
+  .sl-home {
+    --u: calc(100vw / 430);
+  }
+
+  .sl-brand-caption {
+    display: none;
+  }
+
+  .sl-h1 {
+    font-size: calc(38 * var(--u));
+    line-height: calc(46 * var(--u));
+  }
+
+  .sl-risk-pill-caption {
+    width: 100%;
+    text-align: center;
+    margin-right: 0;
+  }
+}
+
+/* ==========================================================================
+   Accessibility: prefers-reduced-motion
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .sl-home *,
+  .sl-home *::before,
+  .sl-home *::after {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    clip-path: none !important;
+  }
+
+  .sl-sheen::after {
+    display: none !important;
+  }
+
+  .sl-home-video {
+    opacity: 0 !important;
+    display: none !important;
+  }
+}

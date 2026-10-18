@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
 import { RISK_PALETTE } from './RiskLegend';
+import { Icon } from '../ui/icons';
+import { Badge } from '../ui/components';
 
 function formatDuration(seconds) {
   if (!seconds || seconds <= 0) return '0m';
@@ -133,7 +135,7 @@ export default function RouteCards({
       {recommendation ? (
         <div className="recommendation-banner banner-safe" id="recommendation-safe-banner">
           <div className="banner-icon-col">
-            <span className="banner-icon-badge">✓</span>
+            <span className="banner-icon-badge"><Icon name="check-circle" size={18} /></span>
           </div>
           <div className="banner-text-col">
             <div className="banner-title-row">
@@ -154,7 +156,7 @@ export default function RouteCards({
       ) : (
         <div className="recommendation-banner banner-blocked" id="recommendation-blocked-banner">
           <div className="banner-icon-col">
-            <span className="banner-icon-badge-blocked">⚠</span>
+            <span className="banner-icon-badge-blocked"><Icon name="alert-triangle" size={18} /></span>
           </div>
           <div className="banner-text-col">
             <h3 className="banner-heading">No safe route at this departure time</h3>
@@ -226,11 +228,18 @@ export default function RouteCards({
                 </div>
                 <div className="card-stat">
                   <span className="stat-label">Max Risk</span>
-                  <span className={`stat-val-badge ${getRiskBadgeClass(route.summary?.max_level)}`}>
-                    {RISK_LABELS[route.summary?.max_level] || 'Unknown'}
-                  </span>
+                  <div style={{ marginTop: 2 }}>
+                    <Badge riskLevel={route.summary?.max_level ?? 0} />
+                  </div>
                 </div>
               </div>
+
+              {route.weather_delay_minutes ? (
+                <div className="card-weather-delay-row" style={{ fontSize: 'var(--font-xs)', color: 'var(--risk-high, #eab308)', display: 'flex', alignItems: 'center', gap: 4, margin: '6px 0' }}>
+                  <Icon name="clock" size={13} />
+                  <span>Est. Weather Delay: +{route.weather_delay_minutes} min</span>
+                </div>
+              ) : null}
 
               {/* Stacked Risk Bar */}
               {(() => {

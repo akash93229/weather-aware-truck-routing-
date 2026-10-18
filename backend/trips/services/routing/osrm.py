@@ -104,8 +104,18 @@ class OSRMRoutingProvider(RoutingProvider):
 
                     return parsed_routes
 
-                elif response.status_code == 404:
-                    raise NoRouteFound('No route found by OSRM.')
+                elif response.status_code in (400, 404):
+                    try:
+                        err_data = response.json()
+                        err_code = err_data.get('code')
+                        err_msg = err_data.get('message', '')
+                        if err_code in ('NoRoute', 'NoSegment') or 'Impossible route' in err_msg:
+                            raise NoRouteFound(f'OSRM: {err_msg or "No route found between points."}')
+                    except (ValueError, KeyError):
+                        pass
+                    if response.status_code == 404:
+                        raise NoRouteFound('No route found by OSRM.')
+                    last_error = f'HTTP {response.status_code}: {response.text[:150]}'
                 else:
                     last_error = f'HTTP {response.status_code}: {response.text[:150]}'
 

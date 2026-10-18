@@ -11,6 +11,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import type { RouteOption, Checkpoint } from '../types/trip';
+import { Icon } from '../ui/icons';
 
 interface RiskProfileChartProps {
   route: RouteOption | null;
@@ -129,8 +130,9 @@ export const RiskProfileChart: React.FC<RiskProfileChartProps> = ({ route }) => 
                     {d.rain > 0 && <div><strong>Rain:</strong> {d.rain} in/hr</div>}
                     {d.snow > 0 && <div><strong>Snow:</strong> {d.snow} in/hr</div>}
                     {d.loadRule && (
-                      <div style={{ color: '#F87171', marginTop: '4px', fontSize: '11px' }}>
-                        ⚠️ {d.loadRule}
+                      <div style={{ color: '#F87171', marginTop: '4px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Icon name="alert-triangle" size={12} />
+                        <span>{d.loadRule}</span>
                       </div>
                     )}
                   </div>

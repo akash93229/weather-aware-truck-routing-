@@ -15,7 +15,7 @@ from trips.services.routing.base import (
 
 logger = logging.getLogger(__name__)
 
-TIMEOUT_SECONDS = 8
+TIMEOUT_SECONDS = 2.0
 METERS_TO_MILES = 1.0 / 1609.344
 
 
@@ -136,6 +136,10 @@ class TomTomRoutingProvider(RoutingProvider):
 
             except (NoRouteFound, RoutingUnavailable):
                 raise
+            except requests.exceptions.Timeout as exc:
+                last_error = str(exc)
+                logger.warning('TomTom routing timed out (attempt %d): %s', attempt + 1, exc)
+                break  # Fail fast to OSRM fallback
             except requests.exceptions.RequestException as exc:
                 last_error = str(exc)
 

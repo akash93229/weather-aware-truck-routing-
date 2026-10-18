@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 
 
 @dataclass(frozen=True)
@@ -13,6 +13,9 @@ class Weather:
     gust_mph: float       # Wind gusts (wind_gusts_10m)
     rain_in_hr: float     # Total rainfall (rain + showers) in inches/hr
     snow_in_hr: float     # Snowfall in inches/hr
+    temp_f: Optional[float] = None  # Air temperature in Fahrenheit
+    humidity_pct: Optional[float] = None  # Relative humidity percentage (None if unavailable)
+    condition: Optional[str] = None       # Weather condition description (None if unavailable)
 
 
 class WeatherError(Exception):
